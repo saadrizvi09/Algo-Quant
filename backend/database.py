@@ -1,4 +1,4 @@
-# database.py (No changes needed, just keeping it for context)
+# database.py
 from sqlmodel import SQLModel, create_engine
 from dotenv import load_dotenv 
 import os
@@ -6,9 +6,15 @@ import os
 load_dotenv() 
 
 database_url = os.environ.get("DATABASE_URL")
-# Example: "postgresql://user:password@localhost:5432/algoquant_db"
 
-engine = create_engine(database_url, echo=True)
+engine = create_engine(
+    database_url, 
+    echo=True,
+    pool_pre_ping=True,
+    pool_recycle=300,
+    pool_size=5,
+    max_overflow=10
+)
 
 def create_db_and_tables():
     SQLModel.metadata.create_all(engine)

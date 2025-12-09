@@ -80,7 +80,7 @@ export default function HomePage() {
               <span>V 2.0 LIVE</span>
             </div>
             <h1 className="text-6xl font-bold tracking-tighter text-white leading-tight">
-              Algo<span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">Quant</span>.
+              Algo<span className="text-transparent bg-clip-text bg-linear-to-r from-cyan-400 to-blue-500">Quant</span>.
             </h1>
             <p className="text-slate-400 text-xl mt-4 leading-relaxed max-w-md">
               Institutional-grade backtesting engine powered by Hybrid AI. Validate your edge before you trade.
@@ -176,7 +176,7 @@ export default function HomePage() {
 
               <button
                 disabled={loading}
-                className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold py-4 rounded-xl transition-all transform hover:scale-[1.02] active:scale-[0.98] shadow-lg shadow-cyan-500/20 flex items-center justify-center gap-2"
+                className="w-full bg-linear-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold py-4 rounded-xl transition-all transform hover:scale-[1.02] active:scale-[0.98] shadow-lg shadow-cyan-500/20 flex items-center justify-center gap-2"
               >
                 {loading ? "Processing..." : isLogin ? "Access Terminal" : "Create Account"}
                 {!loading && <ArrowRight size={18} />}

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Activity, LayoutDashboard, LogOut, Zap } from "lucide-react";
+import { Activity, LayoutDashboard, LogOut, Zap, Radio } from "lucide-react";
 
 export default function Navbar() {
   const pathname = usePathname();
@@ -52,6 +52,18 @@ export default function Navbar() {
             >
               <Activity size={16} />
               Backtest Engine
+            </div>
+          </Link>
+          <Link href="/livetrading">
+            <div
+              className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all flex items-center gap-2 ${
+                isActive("/livetrading")
+                  ? "bg-[#1E293B] text-cyan-400 shadow-sm border border-white/5"
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              <Radio size={16} />
+              Live Trading
             </div>
           </Link>
         </div>
