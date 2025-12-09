@@ -472,14 +472,20 @@ export default function BacktestPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="p-4 rounded-xl bg-[#151B26] border border-white/5">
                 <div className="text-slate-400 text-xs font-medium uppercase mb-1">Sharpe Ratio</div>
                 <div className="text-2xl font-bold text-white">{data.metrics.sharpe_ratio}</div>
               </div>
               <div className="p-4 rounded-xl bg-[#151B26] border border-white/5">
-                <div className="text-slate-400 text-xs font-medium uppercase mb-1">Max Drawdown</div>
+                <div className="text-slate-400 text-xs font-medium uppercase mb-1">Max DD (Strategy)</div>
                 <div className="text-2xl font-bold text-red-400">{data.metrics.max_drawdown}</div>
+              </div>
+              <div className="p-4 rounded-xl bg-[#151B26] border border-white/5">
+                <div className="text-slate-400 text-xs font-medium uppercase mb-1">
+                  {strategy === "pairs" ? "Max DD (Ratio)" : "Max DD (B&H)"}
+                </div>
+                <div className="text-2xl font-bold text-orange-400">{data.metrics.max_drawdown_bh}</div>
               </div>
               <div className="p-4 rounded-xl bg-[#151B26] border border-white/5">
                 <div className="text-slate-400 text-xs font-medium uppercase mb-1">Total Trades</div>

@@ -70,7 +70,13 @@ class BacktestRequest(BaseModel):
     ticker: str
     start_date: str
     end_date: str
-    strategy: str = "hmm"  # "hmm" or "arbitrage"
+    strategy: str = "hmm"  # "hmm" or "pairs"
+    # Strategy-specific parameters
+    short_window: int = 12  # For HMM strategy
+    long_window: int = 26   # For HMM strategy
+    n_states: int = 3       # For HMM strategy
+    window: int = 30        # For pairs strategy
+    threshold: float = 1.0  # For pairs strategy
 
 class Token(BaseModel):
     access_token: str
@@ -82,6 +88,12 @@ class LiveTradingRequest(BaseModel):
     trade_amount: float
     duration: int
     duration_unit: str = "minutes"  # "minutes" or "days"
+    # Strategy-specific parameters
+    short_window: int = 12  # For HMM strategy
+    long_window: int = 26   # For HMM strategy
+    window: int = 60        # For pairs strategy
+    threshold: float = 1.0  # For pairs strategy
+    interval: str = '5m'    # Time interval: '1m', '5m', '15m', '1h'
 
 # --- DATABASE DEPENDENCY ---
 def get_session():
@@ -197,14 +209,16 @@ def run_backtest(
         result = simulate_pairs_backtest(
             req.start_date, req.end_date,
             initial_capital=10000,
-            window=30,
-            threshold=1.0
+            window=req.window,
+            threshold=req.threshold
         )
     else:
         # Run HMM Strategy
         result = train_models_and_backtest(
             req.ticker, req.start_date, req.end_date, 
-            short_window=12, long_window=26, n_states=3
+            short_window=req.short_window,
+            long_window=req.long_window,
+            n_states=req.n_states
         )
     return result
 
@@ -287,7 +301,12 @@ def start_trading(req: LiveTradingRequest, current_user: str = Depends(get_curre
         symbol=req.symbol,
         trade_amount=req.trade_amount,
         duration_minutes=duration_minutes,
-        duration_unit=req.duration_unit
+        duration_unit=req.duration_unit,
+        short_window=req.short_window,
+        long_window=req.long_window,
+        window=req.window,
+        threshold=req.threshold,
+        interval=req.interval
     )
     if "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])

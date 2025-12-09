@@ -162,10 +162,15 @@ def train_models_and_backtest(ticker, start_date, end_date, short_window, long_w
     strategy_returns = test_df['Strategy_Returns'].dropna()
     sharpe = (strategy_returns.mean() / strategy_returns.std()) * np.sqrt(252) if strategy_returns.std() != 0 else 0
     
-    # Max Drawdown
-    rolling_max = test_df['Strategy_Equity'].cummax()
-    drawdown = (test_df['Strategy_Equity'] - rolling_max) / rolling_max
-    max_drawdown = drawdown.min()
+    # Max Drawdown - Strategy
+    rolling_max_strategy = test_df['Strategy_Equity'].cummax()
+    drawdown_strategy = (test_df['Strategy_Equity'] - rolling_max_strategy) / rolling_max_strategy
+    max_drawdown_strategy = drawdown_strategy.min()
+    
+    # Max Drawdown - Buy and Hold
+    rolling_max_bh = test_df['BuyHold_Equity'].cummax()
+    drawdown_bh = (test_df['BuyHold_Equity'] - rolling_max_bh) / rolling_max_bh
+    max_drawdown_bh = drawdown_bh.min()
     
     # Win Rate
     winning_trades = [t for t in trades_list if t['trade_pnl'] > 0]
@@ -178,7 +183,8 @@ def train_models_and_backtest(ticker, start_date, end_date, short_window, long_w
             "buy_hold_return": f"{bh_total:.2%}",
             "final_value": f"${test_df['Strategy_Equity'].iloc[-1] * 10000:.2f}",
             "sharpe_ratio": f"{sharpe:.2f}",
-            "max_drawdown": f"{max_drawdown:.2%}",
+            "max_drawdown": f"{max_drawdown_strategy:.2%}",
+            "max_drawdown_bh": f"{max_drawdown_bh:.2%}",
             "win_rate": f"{win_rate:.1f}%",
             "total_trades": len(trades_data)
         },

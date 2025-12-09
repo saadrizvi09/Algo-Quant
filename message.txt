@@ -1,0 +1,1 @@
+I have fixed the issue you were facing. I have modified the backend/live_trading.py file to allow only one active trading session per user. Please try to run the application now.
