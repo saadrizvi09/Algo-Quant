@@ -26,8 +26,6 @@
 - [Quick Start](#-quick-start)
 - [Trading Strategies](#-trading-strategies)
 - [Architecture](#-architecture)
-- [Configuration](#-configuration)
-- [Troubleshooting](#-troubleshooting)
 - [Contributing](#-contributing)
 - [License](#-license)
 
@@ -157,12 +155,6 @@ source venv/bin/activate
 # Install dependencies
 pip install -r requirements.txt
 
-# Configure environment variables
-# Create .env file with:
-DATABASE_URL=postgresql://user:password@localhost/algoquant
-BINANCE_API_KEY=your_testnet_key_here
-BINANCE_SECRET_KEY=your_testnet_secret_here
-
 # Train HMM model (optional but recommended)
 python train_hmm_model.py
 ```
@@ -213,53 +205,73 @@ A Hidden Markov Model (HMM) is a powerful statistical model used to describe the
 
 **Core Concept:**
 
-The market does not behave the same way all the time. It switches between different states, or "regimes," such as:
-- **Low-Volatility / Bullish Trend:** Stable upward price movements.
-- **High-Volatility / Choppy:** Unpredictable, risky price action with no clear trend.
-- **Bearish Trend:** Stable downward price movements.
+The market does not behave the same way all the time. It switches between different states, or "regimes." This strategy uses a 3-state Gaussian HMM trained on historical log returns and volatility to identify three distinct market regimes:
 
-An HMM can be trained on market data (like price returns or volatility) to learn the characteristics of these hidden regimes. Once trained, the model can analyze current market data and predict which regime the market is currently in.
+1.  **Low-Volatility, Ranging/Consolidating:** The market is stable but has no clear direction. This is often a neutral state.
+2.  **Trending (Bullish or Bearish):** The market is moving with a clear directional bias and moderate volatility. These are often the most profitable conditions for trend-following strategies.
+3.  **High-Volatility, Choppy:** The market is experiencing erratic, unpredictable price swings. Trading in this regime is extremely risky and often leads to losses from false signals.
 
 **How This Strategy Uses HMM:**
 
-1.  **Regime Identification:** A 3-state Gaussian HMM is trained on historical price data to identify three distinct market regimes based on their volatility and return characteristics.
-2.  **Signal Generation:** A classic technical indicator, the EMA (Exponential Moving Average) crossover (12-period vs. 26-period), is used to generate raw buy/sell signals.
-3.  **AI-Powered Filtering:** This is the key step. The raw signal from the EMA crossover is **filtered** based on the current regime predicted by the HMM.
-    - If the HMM detects a **favorable regime** (e.g., low-volatility, trending), it allows the trade signal to pass through.
-    - If the HMM detects an **unfavorable regime** (e.g., high-volatility, sideways market), it **blocks** the trade signal.
-4.  **Goal:** The primary goal is not just to generate trades, but to **intelligently avoid trading in bad market conditions**. This helps to reduce losses from false signals and improve the risk-adjusted return of the underlying EMA strategy.
+The strategy combines a classic technical indicator with the AI-powered regime detection of the HMM.
+
+1.  **Signal Generation:** A standard EMA (Exponential Moving Average) crossover (12-period vs. 26-period) is used to generate raw buy/sell signals. A bullish crossover is a potential "buy" signal.
+2.  **AI-Powered Filtering:** This is the key innovation. The raw signal from the EMA crossover is **filtered** based on the current regime predicted by the HMM.
+    - If the HMM detects a **Trending** regime and a bullish crossover occurs, the trade signal is **allowed**.
+    - If the HMM detects a **High-Volatility** or **Low-Volatility/Ranging** regime, the trade signal is **blocked**, regardless of the EMA crossover.
+3.  **Goal:** The primary goal is to **intelligently avoid trading in unfavorable market conditions**. This helps to filter out noise, reduce losses from false signals, and improve the overall quality and risk-adjusted return of the trading strategy.
+
+**Visualizing the Flow:**
+```
+                     ┌──────────────────┐
+                     │ Raw Price Data   │
+                     └────────┬─────────┘
+                              │
+            ┌─────────────────┴─────────────────┐
+            │                                   │
+            ▼                                   ▼
+┌──────────────────────┐             ┌─────────────────────┐
+│   EMA Crossover      │             │   HMM Prediction    │
+│ (12 vs 26 periods)   │             │ (Log Returns, Vol)  │
+└──────────┬───────────┘             └──────────┬──────────┘
+           │                                    │
+           │       ┌──────────────────┐         │
+           ├───────►   Regime Filter  ◄─────────┤
+           │       └──────────────────┘         │
+           │                                    │
+           ▼                                    ▼
+┌──────────────────────┐          ┌───────────────────────────┐
+│ "BUY" Signal if EMAs │          │  Current Market Regime:   │
+│ cross bullishly      │          │  (Trending, High-Vol, etc)│
+└──────────────────────┘          └───────────────────────────┘
+                              │
+                              ▼
+                     ┌──────────────────┐
+                     │  Final Decision  │
+                     │  (Trade or Wait) │
+                     └──────────────────┘
+```
 
 **Parameters**:
 - `short_window`: 12 (default) - For the short-term EMA.
 - `long_window`: 26 (default) - For the long-term EMA.
-- Model: A pre-trained HMM is loaded to provide the regime predictions.
+- `n_states`: 3 (default) - The number of hidden states in the HMM.
 
 ### 2. Pairs Trading (ETH/BTC)
 
 **Description**: Statistical arbitrage strategy that trades the mean reversion of the ETH/BTC price ratio.
 
 **How It Works**:
-- Tracks ETH/BTC ratio over 60-period rolling window
-- Calculates Z-score of current ratio
-- **BUY** when Z-score < -2.0 (ratio undervalued, expect reversion up)
-- **SELL** when Z-score crosses 0 (mean reversion complete)
-- Stop loss when Z-score > 3.0
+- Tracks ETH/BTC ratio over a 60-period rolling window.
+- Calculates the Z-score of the current ratio relative to its rolling mean.
+- A Z-score indicates how many standard deviations the current ratio is from its average.
+- **Go LONG** the pair (Buy ETH, Sell BTC) when the Z-score is significantly low (e.g., < -1.5), indicating the ratio is undervalued and likely to rise.
+- **Go SHORT** the pair (Sell ETH, Buy BTC) when the Z-score is significantly high (e.g., > 1.5), indicating the ratio is overvalued and likely to fall.
+- **Exit** the position when the Z-score returns to its mean (Z-score crosses 0), capturing the profit from the mean reversion.
 
 **Parameters**:
 - `window`: 60 periods (default)
-- `threshold`: 2.0 Z-score (default)
-
-**Entry Logic**:
-```
-Z-Score < -2.0  →  BUY (go LONG on ETH)
-Z-Score > +2.0  →  Avoid (ratio overvalued)
-```
-
-**Exit Logic**:
-```
-Z-Score crosses 0  →  SELL (mean reversion)
-Z-Score > 3.0      →  SELL (stop loss)
-```
+- `threshold`: 1.5 Z-score (default) for entry.
 
 ---
 
@@ -330,156 +342,10 @@ Z-Score > 3.0      →  SELL (stop loss)
    - Automatic fallback on API failure
 
 4. **Signal Generation**
-   - Price → Strategy Handler → Signal (BUY/SELL/HOLD)
    - HMM: Price → EMA + Regime → Signal
    - Pairs: ETH Price + BTC Price → Z-Score → Signal
 
 ---
-
-## ⚙️ Configuration
-
-### Environment Variables
-
-Create a `.env` file in the `backend/` directory:
-
-```env
-# Database
-DATABASE_URL=postgresql://username:password@localhost:5432/algoquant
-
-# Binance Testnet (Free - Get from https://testnet.binance.vision/)
-BINANCE_API_KEY=your_testnet_api_key_here
-BINANCE_SECRET_KEY=your_testnet_secret_key_here
-
-# JWT Authentication
-SECRET_KEY=your_super_secret_key_change_this_in_production
-ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=43200
-
-# Optional: Logging Level
-LOG_LEVEL=INFO
-```
-
-### Trading Parameters
-
-Edit in `backend/strategy_handlers.py`:
-
-```python
-# HMM Strategy
-short_window = 12  # EMA short period
-long_window = 26   # EMA long period
-
-# Pairs Strategy
-window = 60        # Rolling window for Z-score
-threshold = 2.0    # Entry/exit threshold
-```
-
----
-
-## 🐛 Troubleshooting
-
-### Common Issues
-
-#### 1. "Failed to fetch portfolio"
-
-**Solution**:
-```bash
-# Check if backend is running
-curl http://127.0.0.1:8000/docs
-
-# Verify token in localStorage
-# Open browser console and run:
-localStorage.getItem('token')
-
-# Clear cache and login again
-localStorage.clear()
-```
-
-#### 2. "Session not found" (404)
-
-**Cause**: Session already expired or stopped
-
-**Solution**:
-- Sessions automatically cleanup after expiration
-- Refresh the page to see updated session list
-- Check logs for detailed error messages
-
-#### 3. Database Connection Error
-
-**Solution**:
-```bash
-# Check PostgreSQL is running
-# Windows:
-net start postgresql-x64-14
-
-# Linux:
-sudo systemctl start postgresql
-
-# Verify connection
-psql -U username -d algoquant
-```
-
-#### 4. Missing Dependencies
-
-**Solution**:
-```bash
-# Backend
-cd backend
-pip install -r requirements.txt
-
-# Frontend
-cd frontend
-npm install
-```
-
-### Debug Mode
-
-Enable detailed logging:
-
-```python
-# backend/main.py
-import logging
-logging.basicConfig(level=logging.DEBUG)
-```
-
-Check logs for:
-- `[SimTrading]` - Trading session events
-- `[SimEx]` - Exchange operations
-- `[StrategyHandler]` - Signal generation
-- `[Portfolio]` - Balance updates
-
----
-
-## 💰 Cost Breakdown
-
-| Component | Service | Cost |
-|-----------|---------|------|
-| Price Data (Primary) | Binance Testnet | **FREE** ✅ |
-| Price Data (Fallback) | Yahoo Finance | **FREE** ✅ |
-| Database | PostgreSQL (Local) | **FREE** ✅ |
-| Backend | FastAPI + Python | **FREE** ✅ |
-| Frontend | Next.js + React | **FREE** ✅ |
-| ML Models | scikit-learn, hmmlearn | **FREE** ✅ |
-| Hosting | Local Development | **FREE** ✅ |
-| **TOTAL** | | **$0.00** 🎉 |
-
----
-
-## 📚 Additional Resources
-
-### Documentation
-- [FastAPI Docs](https://fastapi.tiangolo.com/)
-- [Next.js Docs](https://nextjs.org/docs)
-- [SQLModel Guide](https://sqlmodel.tiangolo.com/)
-- [Binance Testnet](https://testnet.binance.vision/)
-
-### Learning Resources
-- [Algorithmic Trading Tutorial](https://www.quantstart.com/)
-- [Hidden Markov Models](https://www.youtube.com/watch?v=kqSzLo9fenk)
-- [Pairs Trading Explained](https://www.investopedia.com/terms/p/pairstrade.asp)
-- [Z-Score Analysis](https://www.investopedia.com/terms/z/zscore.asp)
-
----
-
 ## 🤝 Contributing
 
 We welcome contributions! Here's how you can help:
