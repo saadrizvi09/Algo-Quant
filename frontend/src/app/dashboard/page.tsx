@@ -62,12 +62,21 @@ export default function DashboardPage() {
 
   const fetchPortfolio = useCallback(async () => {
     try {
-      const res = await fetch("http://127.0.0.1:8000/api/live/portfolio", {
+      const res = await fetch("http://127.0.0.1:8000/api/simulated/portfolio", {
         headers: getAuthHeaders(),
       });
       if (res.ok) {
         const data = await res.json();
-        setPortfolio(data);
+        // Convert simulated portfolio format to dashboard format
+        const holdings = data.assets.map((asset: any) => ({
+          asset: asset.symbol,
+          quantity: asset.balance,
+          value_usdt: asset.value_usdt
+        }));
+        setPortfolio({ 
+          total_value_usdt: data.total_value_usdt,
+          holdings: holdings 
+        });
       }
     } catch (err) {
       console.error("Failed to fetch portfolio", err);
@@ -76,7 +85,7 @@ export default function DashboardPage() {
 
   const fetchRecentTrades = useCallback(async () => {
     try {
-      const res = await fetch("http://127.0.0.1:8000/api/live/trades?limit=10", {
+      const res = await fetch("http://127.0.0.1:8000/api/simulated/trades?limit=10", {
         headers: getAuthHeaders(),
       });
       if (res.ok) {
@@ -90,7 +99,7 @@ export default function DashboardPage() {
 
   const fetchSessions = useCallback(async () => {
     try {
-      const res = await fetch("http://127.0.0.1:8000/api/live/sessions", {
+      const res = await fetch("http://127.0.0.1:8000/api/simulated/sessions", {
         headers: getAuthHeaders(),
       });
       if (res.ok) {
@@ -116,7 +125,14 @@ export default function DashboardPage() {
     }
 
     setLoading(false);
-    refreshAll();
+    
+    // Add small delay to ensure backend is ready after login
+    const initializeData = async () => {
+      await new Promise(resolve => setTimeout(resolve, 200));
+      refreshAll();
+    };
+
+    initializeData();
 
     const interval = setInterval(refreshAll, 30000);
     return () => clearInterval(interval);
@@ -153,9 +169,9 @@ export default function DashboardPage() {
               <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
               Refresh
             </button>
-            <div className="px-3 py-2 bg-yellow-500/10 border border-yellow-500/20 rounded-lg text-yellow-400 text-sm flex items-center gap-2">
-              <Zap size={14} />
-              Testnet
+            <div className="px-3 py-2 bg-cyan-500/10 border border-cyan-500/20 rounded-lg text-cyan-400 text-sm flex items-center gap-2">
+              <Wallet size={14} />
+              Simulated Mode
             </div>
           </div>
         </div>

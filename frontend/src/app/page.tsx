@@ -47,7 +47,9 @@ export default function HomePage() {
         // --- LOGIN SUCCESS ---
         // 1. Store Token
         localStorage.setItem("token", data.access_token);
-        // 2. Redirect to Dashboard
+        // 2. Wait a bit to ensure token is saved
+        await new Promise(resolve => setTimeout(resolve, 100));
+        // 3. Redirect to Dashboard
         router.push("/backtest");
       } else {
         // --- SIGNUP SUCCESS ---
@@ -66,8 +68,8 @@ export default function HomePage() {
     <div className="min-h-screen bg-[#0B0E14] text-slate-200 font-sans selection:bg-cyan-500/30 flex items-center justify-center relative overflow-hidden">
       
       {/* --- Background Effects --- */}
-      <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-blue-600/10 rounded-full blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-cyan-500/10 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-blue-600/10 rounded-full blur-[120px] pointer-events-none animate-pulse" />
+      <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-cyan-500/10 rounded-full blur-[120px] pointer-events-none animate-pulse" />
       <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 pointer-events-none"></div>
 
       <div className="max-w-6xl w-full grid grid-cols-1 lg:grid-cols-2 gap-16 px-6 z-10">
@@ -75,28 +77,41 @@ export default function HomePage() {
         {/* --- Left Column: Hero Content --- */}
         <div className="flex flex-col justify-center space-y-8">
           <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-xs font-mono mb-6">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-cyan-500/10 to-blue-500/10 border border-cyan-500/20 text-cyan-400 text-xs font-mono mb-6 animate-pulse">
               <Zap size={14} />
-              <span>V 2.0 LIVE</span>
+              <span>PRODUCTION READY • 100% FREE</span>
             </div>
             <h1 className="text-6xl font-bold tracking-tighter text-white leading-tight">
-              Algo<span className="text-transparent bg-clip-text bg-linear-to-r from-cyan-400 to-blue-500">Quant</span>.
+              Algo<span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-500">Quant</span>
             </h1>
             <p className="text-slate-400 text-xl mt-4 leading-relaxed max-w-md">
-              Institutional-grade backtesting engine powered by Hybrid AI. Validate your edge before you trade.
+              AI-powered algorithmic trading platform. Backtest strategies, execute paper trades, and master the markets—all without risking a penny.
             </p>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <div className="p-4 rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm">
-              <Activity className="text-cyan-400 mb-2" />
-              <h3 className="text-white font-semibold">Live Simulation</h3>
-              <p className="text-xs text-slate-500 mt-1">Real-time market playback</p>
+            <div className="p-4 rounded-xl bg-gradient-to-br from-cyan-500/10 to-transparent border border-cyan-500/20 backdrop-blur-sm hover:border-cyan-500/40 transition-all group">
+              <Activity className="text-cyan-400 mb-2 group-hover:scale-110 transition-transform" />
+              <h3 className="text-white font-semibold">Live Trading</h3>
+              <p className="text-xs text-slate-500 mt-1">Real-time simulation</p>
             </div>
-            <div className="p-4 rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm">
-              <Cpu className="text-blue-400 mb-2" />
-              <h3 className="text-white font-semibold">HMM Models</h3>
-              <p className="text-xs text-slate-500 mt-1">Hidden Markov logic</p>
+            <div className="p-4 rounded-xl bg-gradient-to-br from-blue-500/10 to-transparent border border-blue-500/20 backdrop-blur-sm hover:border-blue-500/40 transition-all group">
+              <Cpu className="text-blue-400 mb-2 group-hover:scale-110 transition-transform" />
+              <h3 className="text-white font-semibold">AI Strategies</h3>
+              <p className="text-xs text-slate-500 mt-1">HMM & Z-Score</p>
+            </div>
+          </div>
+
+          {/* Feature Pills */}
+          <div className="flex flex-wrap gap-2">
+            <div className="px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-full text-emerald-400 text-xs">
+              ✓ $10,000 Paper Trading
+            </div>
+            <div className="px-3 py-1 bg-purple-500/10 border border-purple-500/20 rounded-full text-purple-400 text-xs">
+              ✓ No Credit Card
+            </div>
+            <div className="px-3 py-1 bg-blue-500/10 border border-blue-500/20 rounded-full text-blue-400 text-xs">
+              ✓ Real Market Data
             </div>
           </div>
         </div>
@@ -176,16 +191,44 @@ export default function HomePage() {
 
               <button
                 disabled={loading}
-                className="w-full bg-linear-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold py-4 rounded-xl transition-all transform hover:scale-[1.02] active:scale-[0.98] shadow-lg shadow-cyan-500/20 flex items-center justify-center gap-2"
+                className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold py-4 rounded-xl transition-all transform hover:scale-[1.02] active:scale-[0.98] shadow-lg shadow-cyan-500/20 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {loading ? "Processing..." : isLogin ? "Access Terminal" : "Create Account"}
-                {!loading && <ArrowRight size={18} />}
+                {loading ? (
+                  <span className="flex items-center gap-2">
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Processing...
+                  </span>
+                ) : (
+                  <>
+                    {isLogin ? "Access Dashboard" : "Create Free Account"}
+                    <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                  </>
+                )}
               </button>
             </form>
 
-            <p className="text-center text-slate-600 text-xs mt-6">
-              Secured by <span className="text-slate-400">HS256 Encryption</span>
-            </p>
+            <div className="mt-6 space-y-3">
+              <div className="flex items-center justify-center gap-2 text-xs text-slate-500">
+                <Lock size={12} />
+                <span>Secured with JWT & bcrypt encryption</span>
+              </div>
+              
+              {/* Quick Stats */}
+              <div className="grid grid-cols-3 gap-2 pt-4 border-t border-white/5">
+                <div className="text-center">
+                  <div className="text-cyan-400 font-bold">$10K</div>
+                  <div className="text-xs text-slate-600">Starting Capital</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-emerald-400 font-bold">100%</div>
+                  <div className="text-xs text-slate-600">Free Forever</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-purple-400 font-bold">24/7</div>
+                  <div className="text-xs text-slate-600">Auto Trading</div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>

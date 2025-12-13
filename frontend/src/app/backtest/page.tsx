@@ -401,7 +401,7 @@ export default function BacktestPage() {
             <button
               onClick={runBacktest}
               disabled={loading}
-              className="w-full px-6 py-4 bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-semibold rounded-xl hover:from-cyan-600 hover:to-blue-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/40"
+              className="w-full px-6 py-4 bg-linear-to-r from-cyan-500 to-blue-500 text-white font-semibold rounded-xl hover:from-cyan-600 hover:to-blue-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/40"
             >
               {loading ? (
                 <span className="flex items-center justify-center gap-2">
@@ -427,7 +427,7 @@ export default function BacktestPage() {
         {data && (
           <>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="p-6 rounded-2xl bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 border border-emerald-500/20 hover:border-emerald-500/40 transition-all group">
+              <div className="p-6 rounded-2xl bg-linear-to-br from-emerald-500/10 to-emerald-500/5 border border-emerald-500/20 hover:border-emerald-500/40 transition-all group">
                 <div className="flex justify-between items-start mb-3">
                   <div className="p-2.5 rounded-xl bg-emerald-500/20 text-emerald-400">
                     <TrendingUp size={20} />
@@ -437,7 +437,7 @@ export default function BacktestPage() {
                 <p className="text-3xl font-bold text-emerald-400 mt-2">{data.metrics.strategy_return}</p>
               </div>
 
-              <div className="p-6 rounded-2xl bg-gradient-to-br from-blue-500/10 to-blue-500/5 border border-blue-500/20 hover:border-blue-500/40 transition-all group">
+              <div className="p-6 rounded-2xl bg-linear-to-br from-blue-500/10 to-blue-500/5 border border-blue-500/20 hover:border-blue-500/40 transition-all group">
                 <div className="flex justify-between items-start mb-3">
                   <div className="p-2.5 rounded-xl bg-blue-500/20 text-blue-400">
                     <Percent size={20} />
@@ -451,7 +451,7 @@ export default function BacktestPage() {
                 </p>
               </div>
 
-              <div className="p-6 rounded-2xl bg-gradient-to-br from-purple-500/10 to-purple-500/5 border border-purple-500/20 hover:border-purple-500/40 transition-all group">
+              <div className="p-6 rounded-2xl bg-linear-to-br from-purple-500/10 to-purple-500/5 border border-purple-500/20 hover:border-purple-500/40 transition-all group">
                 <div className="flex justify-between items-start mb-3">
                   <div className="p-2.5 rounded-xl bg-purple-500/20 text-purple-400">
                     <DollarSign size={20} />
@@ -461,7 +461,7 @@ export default function BacktestPage() {
                 <p className="text-3xl font-bold text-purple-400 mt-2">{data.metrics.final_value}</p>
               </div>
 
-              <div className="p-6 rounded-2xl bg-gradient-to-br from-cyan-500/10 to-cyan-500/5 border border-cyan-500/20 hover:border-cyan-500/40 transition-all group">
+              <div className="p-6 rounded-2xl bg-linear-to-br from-cyan-500/10 to-cyan-500/5 border border-cyan-500/20 hover:border-cyan-500/40 transition-all group">
                 <div className="flex justify-between items-start mb-3">
                   <div className="p-2.5 rounded-xl bg-cyan-500/20 text-cyan-400">
                     <Activity size={20} />
@@ -472,10 +472,14 @@ export default function BacktestPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="p-4 rounded-xl bg-[#151B26] border border-white/5">
                 <div className="text-slate-400 text-xs font-medium uppercase mb-1">Sharpe Ratio</div>
                 <div className="text-2xl font-bold text-white">{data.metrics.sharpe_ratio}</div>
+              </div>
+              <div className="p-4 rounded-xl bg-[#151B26] border border-white/5">
+                <div className="text-slate-400 text-xs font-medium uppercase mb-1">Sortino Ratio</div>
+                <div className="text-2xl font-bold text-cyan-400">{data.metrics.sortino_ratio}</div>
               </div>
               <div className="p-4 rounded-xl bg-[#151B26] border border-white/5">
                 <div className="text-slate-400 text-xs font-medium uppercase mb-1">Max DD (Strategy)</div>
@@ -486,6 +490,18 @@ export default function BacktestPage() {
                   {strategy === "pairs" ? "Max DD (Ratio)" : "Max DD (B&H)"}
                 </div>
                 <div className="text-2xl font-bold text-orange-400">{data.metrics.max_drawdown_bh}</div>
+              </div>
+              <div className="p-4 rounded-xl bg-[#151B26] border border-white/5">
+                <div className="text-slate-400 text-xs font-medium uppercase mb-1">Profit Factor</div>
+                <div className="text-2xl font-bold text-emerald-400">{data.metrics.profit_factor}</div>
+              </div>
+              <div className="p-4 rounded-xl bg-[#151B26] border border-white/5">
+                <div className="text-slate-400 text-xs font-medium uppercase mb-1">Avg Risk:Reward</div>
+                <div className="text-2xl font-bold text-purple-400">{data.metrics.risk_reward}</div>
+              </div>
+              <div className="p-4 rounded-xl bg-[#151B26] border border-white/5">
+                <div className="text-slate-400 text-xs font-medium uppercase mb-1">Recovery Factor</div>
+                <div className="text-2xl font-bold text-yellow-400">{data.metrics.recovery_factor}</div>
               </div>
               <div className="p-4 rounded-xl bg-[#151B26] border border-white/5">
                 <div className="text-slate-400 text-xs font-medium uppercase mb-1">Total Trades</div>

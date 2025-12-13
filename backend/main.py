@@ -34,6 +34,7 @@ from live_trading import (
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     create_db_and_tables()
+    # Note: Portfolio initialization moved to per-user basis (on first API call)
     yield
 
 app = FastAPI(lifespan=lifespan)
@@ -330,9 +331,90 @@ def get_session(session_id: str, current_user: str = Depends(get_current_user)):
         raise HTTPException(status_code=404, detail=status["error"])
     return status
 
+@app.get("/api/simulated/trades")
+def get_simulated_trades(
+    limit: int = 50,
+    current_user: str = Depends(get_current_user)
+):
+    """Get recent simulated trades for the current user"""
+    from simulated_endpoints import get_simulated_trades_endpoint
+    return get_simulated_trades_endpoint(limit, current_user)
+
+
+@app.get("/api/simulated/sessions")
+def get_simulated_sessions(current_user: str = Depends(get_current_user)):
+    """Get all simulated trading sessions for the current user"""
+    from simulated_endpoints import get_simulated_sessions_endpoint
+    return get_simulated_sessions_endpoint(current_user)
 
 @app.get("/api/live/sessions")
 def get_sessions(current_user: str = Depends(get_current_user)):
     """Get all trading sessions for the current user"""
     sessions = get_user_sessions(current_user)
     return {"sessions": sessions}
+
+
+@app.get("/api/simulated/portfolio")
+def get_simulated_portfolio(current_user: str = Depends(get_current_user)):
+    """Get the internal simulated portfolio (database-driven wallet)"""
+    from simulated_exchange import get_portfolio_summary
+    from database import initialize_portfolio_if_empty
+    
+    # Initialize portfolio with 10k USDT if this is a new user
+    initialize_portfolio_if_empty(user_email=current_user)
+    
+    portfolio = get_portfolio_summary(user_email=current_user)
+    return portfolio
+
+
+@app.post("/api/simulated/start")
+def start_simulated_session(req: LiveTradingRequest, current_user: str = Depends(get_current_user)):
+    """Start a simulated trading session using internal database wallet"""
+    from simulated_trading import start_simulated_trading
+    from database import initialize_portfolio_if_empty
+    
+    # Initialize portfolio with 10k USDT if this is a new user
+    initialize_portfolio_if_empty(user_email=current_user)
+    
+    duration_minutes = req.duration
+    if req.duration_unit == "days":
+        duration_minutes = req.duration * 24 * 60
+    
+    result = start_simulated_trading(
+        user_email=current_user,
+        strategy=req.strategy,
+        symbol=req.symbol,
+        trade_amount=req.trade_amount,
+        duration_minutes=duration_minutes,
+        short_window=req.short_window,
+        long_window=req.long_window,
+        window=req.window,
+        threshold=req.threshold,
+        interval=req.interval
+    )
+    
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+
+@app.post("/api/simulated/stop/{session_id}")
+def stop_simulated_session(session_id: str, current_user: str = Depends(get_current_user)):
+    """Stop a simulated trading session"""
+    from simulated_trading import stop_simulated_trading
+    
+    result = stop_simulated_trading(session_id)
+    if "error" in result:
+        raise HTTPException(status_code=404, detail=result["error"])
+    return result
+
+
+@app.get("/api/simulated/session/{session_id}")
+def get_simulated_session(session_id: str, current_user: str = Depends(get_current_user)):
+    """Get status of a simulated trading session"""
+    from simulated_trading import get_simulated_session_status
+    
+    status = get_simulated_session_status(session_id)
+    if "error" in status:
+        raise HTTPException(status_code=404, detail=status["error"])
+    return status

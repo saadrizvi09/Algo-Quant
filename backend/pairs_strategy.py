@@ -60,21 +60,37 @@ def fetch_pairs_data(period: str = '7d', interval: str = '1m', use_binance: bool
             use_binance = False
     
     # Yahoo Finance fallback (calculate ratio from separate prices)
-    tickers = "BTC-USD ETH-USD"
-    data = yf.download(tickers, period=period, interval=interval, group_by='ticker', progress=False)
-    
-    df = pd.DataFrame(index=data.index)
-    
-    if isinstance(data.columns, pd.MultiIndex):
-        df['BTC'] = data['BTC-USD']['Close']
-        df['ETH'] = data['ETH-USD']['Close']
-    else:
-        df['BTC'] = data['Close']['BTC-USD'] if 'BTC-USD' in data['Close'].columns else data['Close']
-        df['ETH'] = data['Close']['ETH-USD'] if 'ETH-USD' in data['Close'].columns else data['Close']
-    
-    df['Ratio'] = df['ETH'] / df['BTC']
-    df = df[['Ratio']].dropna()
-    return df
+    try:
+        tickers = "BTC-USD ETH-USD"
+        data = yf.download(tickers, period=period, interval=interval, group_by='ticker', progress=False)
+        
+        if data.empty:
+            print("No data returned from Yahoo Finance")
+            return pd.DataFrame()
+        
+        df = pd.DataFrame(index=data.index)
+        
+        # Handle MultiIndex columns (when multiple tickers are downloaded)
+        if isinstance(data.columns, pd.MultiIndex):
+            df['BTC'] = data['BTC-USD']['Close']
+            df['ETH'] = data['ETH-USD']['Close']
+        else:
+            # Single ticker case or flat structure
+            if 'Close' in data.columns:
+                # This shouldn't happen with 2 tickers, but handle it
+                df['BTC'] = data['Close']
+                df['ETH'] = data['Close']
+            else:
+                print("Unexpected data structure from Yahoo Finance")
+                return pd.DataFrame()
+        
+        df['Ratio'] = df['ETH'] / df['BTC']
+        df = df[['Ratio']].dropna()
+        return df
+        
+    except Exception as e:
+        print(f"Yahoo Finance download error: {e}")
+        return pd.DataFrame()
 
 
 def calculate_zscore(df: pd.DataFrame, window: int = 60) -> pd.DataFrame:
@@ -224,15 +240,33 @@ def simulate_pairs_backtest(start_date: str, end_date: str,
     total_return = (balance - initial_capital) / initial_capital
     win_rate = len(winning_trades) / len(close_trades) * 100 if close_trades else 0
     
-    # Sharpe ratio
+    # Calculate returns for Sharpe and Sortino
     if len(equity_curve) > 1:
         returns = []
         for i in range(1, len(equity_curve)):
             ret = (equity_curve[i]['equity'] - equity_curve[i-1]['equity']) / equity_curve[i-1]['equity']
             returns.append(ret)
+        
+        # Sharpe ratio
         sharpe = (np.mean(returns) / np.std(returns)) * np.sqrt(252 * 24) if np.std(returns) > 0 else 0
+        
+        # Sortino ratio (downside deviation)
+        negative_returns = [r for r in returns if r < 0]
+        downside_std = np.std(negative_returns) if len(negative_returns) > 0 else 0
+        sortino = (np.mean(returns) / downside_std) * np.sqrt(252 * 24) if downside_std > 0 else 0
     else:
         sharpe = 0
+        sortino = 0
+    
+    # Profit Factor
+    total_wins = sum([abs(t.get('pnl', 0)) for t in winning_trades]) if winning_trades else 0
+    total_losses = sum([abs(t.get('pnl', 0)) for t in losing_trades]) if losing_trades else 0
+    profit_factor = total_wins / total_losses if total_losses > 0 else (float('inf') if total_wins > 0 else 0)
+    
+    # Average Risk:Reward Ratio
+    avg_win = (total_wins / len(winning_trades)) if winning_trades else 0
+    avg_loss = (total_losses / len(losing_trades)) if losing_trades else 0
+    risk_reward = avg_win / avg_loss if avg_loss > 0 else 0
     
     # Max drawdown - Strategy
     peak = initial_capital
@@ -279,14 +313,21 @@ def simulate_pairs_backtest(start_date: str, end_date: str,
             'z_score': round(t['z_score'], 2)
         })
     
+    # Recovery Factor (total return / max drawdown)
+    recovery_factor = abs(total_return / max_dd_strategy) if max_dd_strategy > 0 else 0
+    
     return {
         "metrics": {
             "strategy_return": f"{total_return:.2%}",
             "buy_hold_return": "N/A (Pairs)",
             "final_value": f"${balance:.2f}",
             "sharpe_ratio": f"{sharpe:.2f}",
+            "sortino_ratio": f"{sortino:.2f}",
             "max_drawdown": f"{-max_dd_strategy:.2%}",
             "max_drawdown_bh": f"{-max_dd_bh:.2%}",
+            "profit_factor": f"{profit_factor:.2f}" if profit_factor != float('inf') else "∞",
+            "risk_reward": f"{risk_reward:.2f}",
+            "recovery_factor": f"{recovery_factor:.2f}",
             "win_rate": f"{win_rate:.1f}%",
             "total_trades": len(close_trades),
             "trades_per_day": f"{len(close_trades) / max(days, 1):.1f}"

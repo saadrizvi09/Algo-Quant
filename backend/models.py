@@ -38,3 +38,10 @@ class Trade(SQLModel, table=True):
     pnl: Optional[float] = None
     order_id: Optional[str] = None
     executed_at: datetime = Field(default_factory=datetime.now)
+
+
+class PortfolioAsset(SQLModel, table=True):
+    """Internal simulated wallet for paper trading"""
+    symbol: str = Field(primary_key=True)  # e.g., 'USDT', 'BTC', 'ETH'
+    user_email: str = Field(primary_key=True, index=True)  # Support multi-user portfolios
+    balance: float = Field(default=0.0)

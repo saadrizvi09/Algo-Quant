@@ -123,21 +123,40 @@ export default function LiveTradingPage() {
 
   const fetchPortfolio = useCallback(async () => {
     try {
-      const res = await fetch("http://127.0.0.1:8000/api/live/portfolio", {
+      const res = await fetch("http://127.0.0.1:8000/api/simulated/portfolio", {
         headers: getAuthHeaders(),
       });
       if (res.ok) {
         const data = await res.json();
-        setPortfolio(data);
+        // Convert simulated portfolio format to live format
+        const holdings = data.assets.map((asset: any) => ({
+          asset: asset.symbol,
+          quantity: asset.balance,
+          value_usdt: asset.value_usdt
+        }));
+        setPortfolio({ 
+          total_value_usdt: data.total_value_usdt,
+          holdings: holdings 
+        });
+      } else if (res.status === 401) {
+        // Silent fail on auth errors during initial load
+        console.warn("Authentication required for portfolio");
+        setPortfolio({ total_value_usdt: 0, holdings: [] });
+      } else {
+        // Set default portfolio on error
+        setPortfolio({ total_value_usdt: 0, holdings: [] });
       }
     } catch (err) {
-      console.error("Failed to fetch portfolio", err);
+      // Silent fail on network errors during initial load
+      console.warn("Failed to fetch portfolio", err);
+      // Set default portfolio on error to prevent UI issues
+      setPortfolio({ total_value_usdt: 0, holdings: [] });
     }
   }, [getAuthHeaders]);
 
   const fetchRecentTrades = useCallback(async () => {
     try {
-      const res = await fetch("http://127.0.0.1:8000/api/live/trades?limit=10", {
+      const res = await fetch("http://127.0.0.1:8000/api/simulated/trades?limit=10", {
         headers: getAuthHeaders(),
       });
       if (res.ok) {
@@ -151,7 +170,7 @@ export default function LiveTradingPage() {
 
   const fetchSessions = useCallback(async () => {
     try {
-      const res = await fetch("http://127.0.0.1:8000/api/live/sessions", {
+      const res = await fetch("http://127.0.0.1:8000/api/simulated/sessions", {
         headers: getAuthHeaders(),
       });
       if (res.ok) {
@@ -190,7 +209,7 @@ export default function LiveTradingPage() {
     setSuccess(null);
 
     try {
-      const res = await fetch("http://127.0.0.1:8000/api/live/start", {
+      const res = await fetch("http://127.0.0.1:8000/api/simulated/start", {
         method: "POST",
         headers: getAuthHeaders(),
         body: JSON.stringify({
@@ -219,7 +238,7 @@ export default function LiveTradingPage() {
 
   const stopTrading = async (sessionId: string) => {
     try {
-      const res = await fetch(`http://127.0.0.1:8000/api/live/stop/${sessionId}`, {
+      const res = await fetch(`http://127.0.0.1:8000/api/simulated/stop/${sessionId}`, {
         method: "POST",
         headers: getAuthHeaders(),
       });
@@ -247,7 +266,7 @@ export default function LiveTradingPage() {
           <div>
             <h1 className="text-4xl font-bold text-white">Live Trading</h1>
             <p className="text-slate-400 mt-2">
-              Paper trading on Binance Testnet - Real strategies, no real money
+              Paper trading with $10,000 starting capital - Real strategies, simulated execution
             </p>
           </div>
           <div className="flex gap-2">
@@ -259,9 +278,9 @@ export default function LiveTradingPage() {
               <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
               Refresh
             </button>
-            <div className="px-3 py-1 bg-yellow-500/10 border border-yellow-500/20 rounded-lg text-yellow-400 text-sm flex items-center gap-2">
-              <Zap size={14} />
-              Testnet Mode
+            <div className="px-3 py-1 bg-cyan-500/10 border border-cyan-500/20 rounded-lg text-cyan-400 text-sm flex items-center gap-2">
+              <Wallet size={14} />
+              Simulated Mode
             </div>
           </div>
         </div>
@@ -306,17 +325,6 @@ export default function LiveTradingPage() {
             </p>
           </div>
 
-          <div className="p-6 rounded-2xl bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 border border-emerald-500/20">
-            <div className="flex justify-between items-start mb-3">
-              <div className="p-2.5 rounded-xl bg-emerald-500/20 text-emerald-400">
-                <BarChart3 size={20} />
-              </div>
-            </div>
-            <h3 className="text-slate-400 text-xs font-medium uppercase">Holdings</h3>
-            <p className="text-3xl font-bold text-emerald-400 mt-2">
-              {portfolio?.holdings?.length || 0}
-            </p>
-          </div>
         </div>
 
         {/* Main Grid */}
@@ -641,44 +649,6 @@ export default function LiveTradingPage() {
             )}
           </div>
         </div>
-
-        {/* Holdings Table */}
-        {portfolio?.holdings && portfolio.holdings.length > 0 && (
-          <div className="bg-[#151B26] border border-white/5 rounded-2xl overflow-hidden">
-            <div className="p-6 border-b border-white/5">
-              <h3 className="font-semibold text-white flex items-center gap-2">
-                <Wallet className="w-5 h-5 text-cyan-400" />
-                Current Holdings
-              </h3>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-[#0B0E14]">
-                  <tr>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-400 uppercase">Asset</th>
-                    <th className="px-6 py-4 text-right text-xs font-semibold text-slate-400 uppercase">Quantity</th>
-                    <th className="px-6 py-4 text-right text-xs font-semibold text-slate-400 uppercase">Value (USDT)</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/5">
-                  {portfolio.holdings.map((holding) => (
-                    <tr key={holding.asset} className="hover:bg-white/5 transition">
-                      <td className="px-6 py-4">
-                        <div className="font-medium text-white">{holding.asset}</div>
-                      </td>
-                      <td className="px-6 py-4 text-right text-slate-300">
-                        {holding.quantity.toFixed(8)}
-                      </td>
-                      <td className="px-6 py-4 text-right font-semibold text-white">
-                        ${holding.value_usdt.toFixed(2)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
 
         {/* Recent Trades */}
         <div className="bg-[#151B26] border border-white/5 rounded-2xl overflow-hidden">
