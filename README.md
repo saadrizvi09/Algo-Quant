@@ -12,7 +12,7 @@
 
 **Institutional-grade algorithmic trading platform with real-time backtesting, AI-powered strategies, and paper trading**
 
-[Features](#-features) • [Quick Start](#-quick-start) • [Documentation](#-documentation) • [Strategies](#-trading-strategies) • [API](#-api-reference)
+[Features](#-features) • [Quick Start](#-quick-start) • [Documentation](#-documentation) • [Strategies](#-trading-strategies)
 
 </div>
 
@@ -26,8 +26,6 @@
 - [Quick Start](#-quick-start)
 - [Trading Strategies](#-trading-strategies)
 - [Architecture](#-architecture)
-- [API Reference](#-api-reference)
-- [Database Schema](#-database-schema)
 - [Configuration](#-configuration)
 - [Troubleshooting](#-troubleshooting)
 - [Contributing](#-contributing)
@@ -195,8 +193,7 @@ npm run dev
 
 Open your browser and navigate to:
 - **Frontend**: http://localhost:3000
-- **Backend API**: http://127.0.0.1:8000
-- **API Docs**: http://127.0.0.1:8000/docs
+- **Backend API Docs**: http://127.0.0.1:8000/docs
 
 ### 🎉 First Steps
 
@@ -212,30 +209,30 @@ Open your browser and navigate to:
 
 ### 1. HMM Regime Filter Strategy
 
-**Description**: Uses a trained 3-state Hidden Markov Model to detect market regimes and filter EMA crossover signals.
+A Hidden Markov Model (HMM) is a powerful statistical model used to describe the evolution of observable events that depend on internal factors, which are not directly observable. In financial markets, these unobservable factors are called "market regimes."
 
-**How It Works**:
-- Calculates 12/26 period EMA crossovers
-- Predicts current market regime (low/medium/high volatility)
-- Executes trades only in favorable (low volatility) regimes
-- Avoids trading during high volatility periods
+**Core Concept:**
+
+The market does not behave the same way all the time. It switches between different states, or "regimes," such as:
+- **Low-Volatility / Bullish Trend:** Stable upward price movements.
+- **High-Volatility / Choppy:** Unpredictable, risky price action with no clear trend.
+- **Bearish Trend:** Stable downward price movements.
+
+An HMM can be trained on market data (like price returns or volatility) to learn the characteristics of these hidden regimes. Once trained, the model can analyze current market data and predict which regime the market is currently in.
+
+**How This Strategy Uses HMM:**
+
+1.  **Regime Identification:** A 3-state Gaussian HMM is trained on historical price data to identify three distinct market regimes based on their volatility and return characteristics.
+2.  **Signal Generation:** A classic technical indicator, the EMA (Exponential Moving Average) crossover (12-period vs. 26-period), is used to generate raw buy/sell signals.
+3.  **AI-Powered Filtering:** This is the key step. The raw signal from the EMA crossover is **filtered** based on the current regime predicted by the HMM.
+    - If the HMM detects a **favorable regime** (e.g., low-volatility, trending), it allows the trade signal to pass through.
+    - If the HMM detects an **unfavorable regime** (e.g., high-volatility, sideways market), it **blocks** the trade signal.
+4.  **Goal:** The primary goal is not just to generate trades, but to **intelligently avoid trading in bad market conditions**. This helps to reduce losses from false signals and improve the risk-adjusted return of the underlying EMA strategy.
 
 **Parameters**:
-- `short_window`: 12 (default)
-- `long_window`: 26 (default)
-- Model: Pre-trained on BTC-USD (2022-2024)
-
-**Performance**:
-- Strategy Return: 62.87%
-- Sharpe Ratio: 1.22
-- Win Rate: 50%
-- Max Drawdown: -36.83%
-
-**Usage**:
-```python
-# Automatically loaded from hmm_model.pkl
-# Falls back to simple EMA crossover if model not found
-```
+- `short_window`: 12 (default) - For the short-term EMA.
+- `long_window`: 26 (default) - For the long-term EMA.
+- Model: A pre-trained HMM is loaded to provide the regime predictions.
 
 ### 2. Pairs Trading (ETH/BTC)
 
@@ -262,13 +259,6 @@ Z-Score > +2.0  →  Avoid (ratio overvalued)
 ```
 Z-Score crosses 0  →  SELL (mean reversion)
 Z-Score > 3.0      →  SELL (stop loss)
-```
-
-**Usage**:
-```bash
-# Select "Pairs Trading (ETH/BTC)" in UI
-# No symbol selection needed
-# Automatically fetches ETH and BTC prices
 ```
 
 ---
@@ -346,256 +336,6 @@ Z-Score > 3.0      →  SELL (stop loss)
 
 ---
 
-## 📡 API Reference
-
-### Authentication
-
-#### POST `/api/signup`
-Create a new user account.
-
-**Request Body**:
-```json
-{
-  "email": "trader@example.com",
-  "password": "securepassword123"
-}
-```
-
-**Response**:
-```json
-{
-  "message": "User created successfully"
-}
-```
-
-#### POST `/api/login`
-Authenticate and receive JWT token.
-
-**Request Body**:
-```json
-{
-  "email": "trader@example.com",
-  "password": "securepassword123"
-}
-```
-
-**Response**:
-```json
-{
-  "access_token": "eyJhbGciOiJIUzI1NiIs...",
-  "token_type": "bearer"
-}
-```
-
-### Portfolio
-
-#### GET `/api/simulated/portfolio`
-Get current portfolio balance and holdings.
-
-**Headers**: `Authorization: Bearer {token}`
-
-**Response**:
-```json
-{
-  "total_value_usdt": 10000.0,
-  "user_email": "trader@example.com",
-  "assets": [
-    {
-      "symbol": "USDT",
-      "balance": 10000.0,
-      "value_usdt": 10000.0
-    }
-  ]
-}
-```
-
-### Trading
-
-#### POST `/api/simulated/start`
-Start a new trading session.
-
-**Headers**: `Authorization: Bearer {token}`
-
-**Request Body**:
-```json
-{
-  "strategy": "pairs",
-  "symbol": "BTCUSDT",
-  "trade_amount": 100,
-  "duration": 60,
-  "duration_unit": "minutes"
-}
-```
-
-**Response**:
-```json
-{
-  "session_id": "81bbcb09-a191-44c3-8fdf-973ee3252c7d",
-  "message": "Simulated trading session started for BTCUSDT",
-  "status": {
-    "is_running": true,
-    "position": null,
-    "trades_count": 0,
-    "total_pnl": 0.0
-  }
-}
-```
-
-#### POST `/api/simulated/stop/{session_id}`
-Stop an active trading session.
-
-**Headers**: `Authorization: Bearer {token}`
-
-**Response**:
-```json
-{
-  "session_id": "81bbcb09-a191-44c3-8fdf-973ee3252c7d",
-  "message": "Session stopped",
-  "total_pnl": 15.50,
-  "trades_count": 5
-}
-```
-
-#### GET `/api/simulated/sessions`
-Get all trading sessions for current user.
-
-**Headers**: `Authorization: Bearer {token}`
-
-**Response**:
-```json
-{
-  "sessions": [
-    {
-      "session_id": "...",
-      "strategy": "pairs",
-      "symbol": "ETHUSDT",
-      "is_running": true,
-      "position": "LONG",
-      "trades_count": 3,
-      "pnl": 25.75,
-      "elapsed_minutes": 15.5,
-      "remaining_minutes": 44.5
-    }
-  ]
-}
-```
-
-#### GET `/api/simulated/trades?limit=10`
-Get recent trade history.
-
-**Headers**: `Authorization: Bearer {token}`
-
-**Response**:
-```json
-{
-  "trades": [
-    {
-      "symbol": "ETHUSDT",
-      "side": "BUY",
-      "price": 2250.50,
-      "quantity": 0.044,
-      "total": 99.02,
-      "time": "2025-12-14T01:50:00"
-    }
-  ]
-}
-```
-
-### Strategies
-
-#### GET `/api/live/strategies`
-Get list of available trading strategies.
-
-**Headers**: `Authorization: Bearer {token}`
-
-**Response**:
-```json
-{
-  "strategies": [
-    {
-      "id": "hmm",
-      "name": "HMM Regime Filter",
-      "description": "Uses HMM to trade EMA crossovers in low volatility",
-      "risk_level": "Medium",
-      "requires_symbol": true
-    },
-    {
-      "id": "pairs",
-      "name": "Pairs Trading (ETH/BTC)",
-      "description": "Z-Score mean reversion on ETH/BTC ratio",
-      "risk_level": "Medium-High",
-      "requires_symbol": false
-    }
-  ]
-}
-```
-
----
-
-## 🗄 Database Schema
-
-### Users Table
-```sql
-CREATE TABLE users (
-    id SERIAL PRIMARY KEY,
-    email VARCHAR(255) UNIQUE NOT NULL,
-    hashed_password VARCHAR(255) NOT NULL,
-    created_at TIMESTAMP DEFAULT NOW()
-);
-```
-
-### PortfolioAsset Table
-```sql
-CREATE TABLE portfolioasset (
-    symbol VARCHAR(10) NOT NULL,
-    user_email VARCHAR(255) NOT NULL,
-    balance DECIMAL(20, 8) NOT NULL,
-    PRIMARY KEY (symbol, user_email),  -- Composite key
-    FOREIGN KEY (user_email) REFERENCES users(email)
-);
-```
-
-### TradingSession Table
-```sql
-CREATE TABLE tradingsession (
-    id SERIAL PRIMARY KEY,
-    session_id VARCHAR(255) UNIQUE NOT NULL,
-    user_email VARCHAR(255) NOT NULL,
-    strategy VARCHAR(100) NOT NULL,
-    symbol VARCHAR(20) NOT NULL,
-    trade_amount DECIMAL(20, 2) NOT NULL,
-    duration_minutes INTEGER NOT NULL,
-    duration_unit VARCHAR(10) DEFAULT 'minutes',
-    start_time TIMESTAMP NOT NULL,
-    end_time TIMESTAMP,
-    is_running BOOLEAN DEFAULT true,
-    total_pnl DECIMAL(20, 2) DEFAULT 0,
-    trades_count INTEGER DEFAULT 0,
-    FOREIGN KEY (user_email) REFERENCES users(email)
-);
-```
-
-### Trade Table
-```sql
-CREATE TABLE trade (
-    id SERIAL PRIMARY KEY,
-    session_id VARCHAR(255) NOT NULL,
-    user_email VARCHAR(255) NOT NULL,
-    symbol VARCHAR(20) NOT NULL,
-    side VARCHAR(10) NOT NULL,  -- BUY/SELL
-    price DECIMAL(20, 8) NOT NULL,
-    quantity DECIMAL(20, 8) NOT NULL,
-    total DECIMAL(20, 2) NOT NULL,
-    pnl DECIMAL(20, 2),
-    order_id VARCHAR(255),
-    executed_at TIMESTAMP DEFAULT NOW(),
-    FOREIGN KEY (session_id) REFERENCES tradingsession(session_id),
-    FOREIGN KEY (user_email) REFERENCES users(email)
-);
-```
-
----
-
 ## ⚙️ Configuration
 
 ### Environment Variables
@@ -618,18 +358,6 @@ ACCESS_TOKEN_EXPIRE_MINUTES=43200
 # Optional: Logging Level
 LOG_LEVEL=INFO
 ```
-
-### Getting Free API Keys
-
-1. **Binance Testnet** (Recommended - Real-time data)
-   - Visit: https://testnet.binance.vision/
-   - Click "Generate HMAC_SHA256 Key"
-   - Copy API Key and Secret
-   - Add to `.env` file
-
-2. **Yahoo Finance** (Automatic fallback - No keys needed)
-   - Automatically used if Binance fails
-   - No configuration required
 
 ### Trading Parameters
 
@@ -675,13 +403,7 @@ localStorage.clear()
 - Refresh the page to see updated session list
 - Check logs for detailed error messages
 
-#### 3. "Unknown strategy: pairs"
-
-**Cause**: Strategy name mismatch (Fixed in latest version)
-
-**Solution**: Already fixed - accepts both "pairs" and "Pairs Strategy"
-
-#### 4. Database Connection Error
+#### 3. Database Connection Error
 
 **Solution**:
 ```bash
@@ -696,7 +418,7 @@ sudo systemctl start postgresql
 psql -U username -d algoquant
 ```
 
-#### 5. Missing Dependencies
+#### 4. Missing Dependencies
 
 **Solution**:
 ```bash
@@ -740,14 +462,6 @@ Check logs for:
 | Hosting | Local Development | **FREE** ✅ |
 | **TOTAL** | | **$0.00** 🎉 |
 
-### Why 100% Free?
-
-- ✅ **Binance Testnet** - Free developer API for testing
-- ✅ **Yahoo Finance** - Free market data (no API key)
-- ✅ **Open Source Tools** - All libraries are free
-- ✅ **Local Hosting** - Run on your own machine
-- ✅ **No Subscriptions** - No hidden costs
-
 ---
 
 ## 📚 Additional Resources
@@ -763,11 +477,6 @@ Check logs for:
 - [Hidden Markov Models](https://www.youtube.com/watch?v=kqSzLo9fenk)
 - [Pairs Trading Explained](https://www.investopedia.com/terms/p/pairstrade.asp)
 - [Z-Score Analysis](https://www.investopedia.com/terms/z/zscore.asp)
-
-### Community
-- **Issues**: [GitHub Issues](https://github.com/yourusername/algoquant/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/algoquant/discussions)
-- **Email**: support@algoquant.com
 
 ---
 
@@ -785,68 +494,11 @@ We welcome contributions! Here's how you can help:
 6. Push to the branch (`git push origin feature/amazing-feature`)
 7. Open a Pull Request
 
-### Contribution Guidelines
-
-- Follow existing code style
-- Add comments for complex logic
-- Update documentation for new features
-- Test thoroughly before submitting
-- Write meaningful commit messages
-
-### Areas We Need Help
-
-- 🧪 Unit tests for strategies
-- 📊 More trading strategies
-- 🎨 UI/UX improvements
-- 📝 Documentation improvements
-- 🐛 Bug reports and fixes
-
 ---
 
 ## 📄 License
 
 This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
-
-### What This Means
-
-✅ Commercial use allowed
-✅ Modification allowed
-✅ Distribution allowed
-✅ Private use allowed
-❌ No liability
-❌ No warranty
-
----
-
-## 🙏 Acknowledgments
-
-Built with ❤️ using:
-
-- [FastAPI](https://fastapi.tiangolo.com/) - Modern Python web framework
-- [Next.js](https://nextjs.org/) - React framework
-- [Tailwind CSS](https://tailwindcss.com/) - Utility-first CSS
-- [PostgreSQL](https://www.postgresql.org/) - Powerful database
-- [scikit-learn](https://scikit-learn.org/) - Machine learning
-- [Binance](https://www.binance.com/) - Testnet API
-- [Yahoo Finance](https://finance.yahoo.com/) - Market data
-
-Special thanks to the open-source community!
-
----
-
-## 📊 Project Status
-
-**Status**: ✅ Production Ready (v2.0)
-
-**Last Updated**: December 14, 2025
-
-**Tested On**:
-- ✅ Windows 11
-- ✅ Python 3.8, 3.9, 3.10, 3.11
-- ✅ Node.js 18, 20
-- ✅ PostgreSQL 12, 13, 14
-
-**Known Issues**: None 🎉
 
 ---
 
@@ -863,12 +515,6 @@ Special thanks to the open-source community!
 - [ ] Custom strategy builder
 - [ ] Social trading features
 - [ ] Mobile app (React Native)
-
-### Version 3.0 (Q3 2026)
-- [ ] Real trading integration (with user consent)
-- [ ] Advanced ML models (LSTM, Transformers)
-- [ ] Automated strategy optimization
-- [ ] Cloud deployment guides
 
 ---
 
