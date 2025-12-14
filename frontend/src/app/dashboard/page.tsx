@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/navbar";
+import { API_URL } from "@/lib/config";
 import {
   ArrowUpRight,
   ArrowDownRight,
@@ -62,7 +63,7 @@ export default function DashboardPage() {
 
   const fetchPortfolio = useCallback(async () => {
     try {
-      const res = await fetch("http://127.0.0.1:8000/api/simulated/portfolio", {
+      const res = await fetch(`${API_URL}/api/simulated/portfolio`, {
         headers: getAuthHeaders(),
       });
       if (res.ok) {
@@ -85,7 +86,7 @@ export default function DashboardPage() {
 
   const fetchRecentTrades = useCallback(async () => {
     try {
-      const res = await fetch("http://127.0.0.1:8000/api/simulated/trades?limit=10", {
+      const res = await fetch(`${API_URL}/api/simulated/trades?limit=10`, {
         headers: getAuthHeaders(),
       });
       if (res.ok) {
@@ -99,7 +100,7 @@ export default function DashboardPage() {
 
   const fetchSessions = useCallback(async () => {
     try {
-      const res = await fetch("http://127.0.0.1:8000/api/simulated/sessions", {
+      const res = await fetch(`${API_URL}/api/simulated/sessions`, {
         headers: getAuthHeaders(),
       });
       if (res.ok) {

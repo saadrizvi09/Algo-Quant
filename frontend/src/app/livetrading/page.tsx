@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { API_URL } from "@/lib/config";
 import {
   Play,
   Square,
@@ -106,7 +107,7 @@ export default function LiveTradingPage() {
 
   const fetchStrategies = useCallback(async () => {
     try {
-      const res = await fetch("http://127.0.0.1:8000/api/live/strategies", {
+      const res = await fetch(`${API_URL}/api/live/strategies`, {
         headers: getAuthHeaders(),
       });
       if (res.ok) {
@@ -123,7 +124,7 @@ export default function LiveTradingPage() {
 
   const fetchPortfolio = useCallback(async () => {
     try {
-      const res = await fetch("http://127.0.0.1:8000/api/simulated/portfolio", {
+      const res = await fetch(`${API_URL}/api/simulated/portfolio`, {
         headers: getAuthHeaders(),
       });
       if (res.ok) {
@@ -156,7 +157,7 @@ export default function LiveTradingPage() {
 
   const fetchRecentTrades = useCallback(async () => {
     try {
-      const res = await fetch("http://127.0.0.1:8000/api/simulated/trades?limit=10", {
+      const res = await fetch(`${API_URL}/api/simulated/trades?limit=10`, {
         headers: getAuthHeaders(),
       });
       if (res.ok) {
@@ -170,7 +171,7 @@ export default function LiveTradingPage() {
 
   const fetchSessions = useCallback(async () => {
     try {
-      const res = await fetch("http://127.0.0.1:8000/api/simulated/sessions", {
+      const res = await fetch(`${API_URL}/api/simulated/sessions`, {
         headers: getAuthHeaders(),
       });
       if (res.ok) {
@@ -209,7 +210,7 @@ export default function LiveTradingPage() {
     setSuccess(null);
 
     try {
-      const res = await fetch("http://127.0.0.1:8000/api/simulated/start", {
+      const res = await fetch(`${API_URL}/api/simulated/start`, {
         method: "POST",
         headers: getAuthHeaders(),
         body: JSON.stringify({
@@ -238,7 +239,7 @@ export default function LiveTradingPage() {
 
   const stopTrading = async (sessionId: string) => {
     try {
-      const res = await fetch(`http://127.0.0.1:8000/api/simulated/stop/${sessionId}`, {
+      const res = await fetch(`${API_URL}/api/simulated/stop/${sessionId}`, {
         method: "POST",
         headers: getAuthHeaders(),
       });

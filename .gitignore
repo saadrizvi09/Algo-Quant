@@ -53,6 +53,14 @@ pnpm-debug.log*
 *.sqlite3
 *.db
 
+# --- Machine Learning Models ---
+*.pkl
+*.h5
+*.model
+
+# --- Hugging Face Space Directory (deployment only) ---
+hf-space/
+
 # --- Project Specific ---
 # Ignore the data folder if it contains large datasets or downloaded CSVs for backtesting
 # backend/data/

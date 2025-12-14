@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Lock, Mail, Activity, Cpu, Zap } from "lucide-react";
+import { API_URL } from "@/lib/config";
 
 export default function HomePage() {
   const router = useRouter();
@@ -28,7 +29,7 @@ export default function HomePage() {
     setSuccessMsg("");
 
     const endpoint = isLogin ? "/api/login" : "/api/signup";
-    const url = `http://127.0.0.1:8000${endpoint}`;
+    const url = `${API_URL}${endpoint}`;
 
     try {
       const res = await fetch(url, {
@@ -55,7 +56,7 @@ export default function HomePage() {
         // --- SIGNUP SUCCESS ---
         // Auto-login after successful signup
         try {
-          const loginRes = await fetch("http://127.0.0.1:8000/api/login", {
+          const loginRes = await fetch(`${API_URL}/api/login`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(formData),

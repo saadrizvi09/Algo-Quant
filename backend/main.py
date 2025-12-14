@@ -40,7 +40,8 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 # --- CONFIGURATION ---
-SECRET_KEY = "algoquant_super_secret_key" # Use os.getenv("SECRET_KEY")
+import os
+SECRET_KEY = os.getenv("SECRET_KEY", "algoquant_super_secret_key")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 43200  # 30 days (30 * 24 * 60)
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -50,12 +51,22 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",
-        "http://127.0.0.1:3000"
+        "http://127.0.0.1:3000",
+        "https://algo-quant-pi.vercel.app"
     ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# --- Health Check Endpoint ---
+@app.get("/")
+async def root():
+    return {"status": "healthy", "message": "AlgoQuant API is running"}
+
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy", "timestamp": datetime.utcnow().isoformat()}
 
 # --- Pydantic Models (For Request Body) ---
 class UserCreate(BaseModel):

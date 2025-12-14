@@ -8,6 +8,7 @@ import Navbar from "@/components/navbar";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format } from "date-fns";
+import { API_URL } from "@/lib/config";
 
 const TICKERS = [
  { "symbol": "BNB-USD", "name": "BNB", "logo": "⬡", "color": "#F3BA2F" },
@@ -126,7 +127,7 @@ export default function BacktestPage() {
     setError(null);
 
     try {
-      const res = await fetch("http://127.0.0.1:8000/api/backtest", {
+      const res = await fetch(`${API_URL}/api/backtest`, {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",

@@ -5,7 +5,7 @@ import os
 
 load_dotenv() 
 
-database_url = os.environ.get("DATABASE_URL")
+database_url = os.environ.get("DATABASE_URL", "sqlite:///./algoquant.db")
 
 engine = create_engine(
     database_url, 
