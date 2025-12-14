@@ -83,9 +83,9 @@ AlgoQuant is a **full-stack quantitative trading platform** featuring HMM-SVR hy
 
 | Metric | Finding |
 |--------|---------|
-| **Win Rate** | 100% - Strategy beats buy-and-hold in every single backtest |
+| **Win Rate** | Strategy beats buy-and-hold most of the times in backtest |
 | **Risk Control** | Lower drawdowns mean better capital preservation during crashes |
-| **Market Adaptability** | Performs through 2021 bull run, 2022 bear market, 2023-2024 recovery |
+| **Market Adaptability** | Performs through 2022 bear market, 2023 recovery, and 2024 bull run |
 | **No Overfitting** | Walk-forward validation ensures no data snooping or parameter curve-fitting |
 | **Real-World Ready** | Results are achievable in live trading (no lookahead bias) |
 
@@ -137,7 +137,7 @@ Day-by-Day Simulation → 252-Day Sliding Window → HMM Regime + SVR Volatility
 
 ### 2. Pairs Trading (ETH/BTC) - Mean Reversion
 
-**Statistical arbitrage exploiting ETH/BTC ratio mean reversion.**
+**High frequency strategy mainly for testing live trading.**
 
 **Logic:**
 ```python
