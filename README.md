@@ -45,7 +45,7 @@ AlgoQuant is a **full-stack quantitative trading platform** featuring HMM-SVR hy
 | **🔄 Crisis Resilience** | Exits high-volatility regimes before major crashes |
 | **📈 Universal Edge** | Works on BTC, ETH, BNB, SOL, LINK - not curve-fitted to one asset |
 
-### 🔬 Backtest Results (2020-2025)
+### 🔬 Backtest Results (2022-2025)
 
 <div align="center">
 
@@ -160,7 +160,7 @@ Exit:   Z-Score crosses 0 # Mean reversion complete
 
 ### Trading
 - ✅ Live trading simulation with $10,000 starting capital
-- ✅ Walk-forward backtesting (2020-2025 historical data)
+- ✅ Walk-forward backtesting (2022-2025 historical data)
 - ✅ Real-time price feeds (Binance Testnet + Yahoo Finance fallback)
 - ✅ 10-second automated execution intervals
 - ✅ LONG/SHORT position tracking with P&L calculation
