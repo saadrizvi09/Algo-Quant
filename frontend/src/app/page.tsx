@@ -99,28 +99,28 @@ export default function HomePage() {
         {/* --- Left Column: Hero Content --- */}
         <div className="flex flex-col justify-center space-y-8">
           <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-cyan-500/10 to-blue-500/10 border border-cyan-500/20 text-cyan-400 text-xs font-mono mb-6 animate-pulse">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-linear-to-r from-cyan-500/10 to-blue-500/10 border border-cyan-500/20 text-cyan-400 text-xs font-mono mb-6 animate-pulse">
               <Zap size={14} />
-              <span>PRODUCTION READY • 100% FREE</span>
+              <span>24/7 Live</span>
             </div>
             <h1 className="text-6xl font-bold tracking-tighter text-white leading-tight">
-              Algo<span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-500">Quant</span>
+              Algo<span className="text-transparent bg-clip-text bg-linear-to-r from-cyan-400 via-blue-500 to-purple-500">Quant</span>
             </h1>
             <p className="text-slate-400 text-xl mt-4 leading-relaxed max-w-md">
-              AI-powered algorithmic trading platform. Backtest strategies, execute paper trades, and master the markets—all without risking a penny.
+              Quantitative algorithmic trading platform. Backtest my strategies, and if you love the results, execute paper trades using those strategies(real trading coming soon). Totally free for now.
             </p>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <div className="p-4 rounded-xl bg-gradient-to-br from-cyan-500/10 to-transparent border border-cyan-500/20 backdrop-blur-sm hover:border-cyan-500/40 transition-all group">
+            <div className="p-4 rounded-xl bg-linear-to-br from-cyan-500/10 to-transparent border border-cyan-500/20 backdrop-blur-sm hover:border-cyan-500/40 transition-all group">
               <Activity className="text-cyan-400 mb-2 group-hover:scale-110 transition-transform" />
               <h3 className="text-white font-semibold">Live Trading</h3>
               <p className="text-xs text-slate-500 mt-1">Real-time simulation</p>
             </div>
-            <div className="p-4 rounded-xl bg-gradient-to-br from-blue-500/10 to-transparent border border-blue-500/20 backdrop-blur-sm hover:border-blue-500/40 transition-all group">
+            <div className="p-4 rounded-xl bg-linear-to-br from-blue-500/10 to-transparent border border-blue-500/20 backdrop-blur-sm hover:border-blue-500/40 transition-all group">
               <Cpu className="text-blue-400 mb-2 group-hover:scale-110 transition-transform" />
-              <h3 className="text-white font-semibold">AI Strategies</h3>
-              <p className="text-xs text-slate-500 mt-1">HMM & Z-Score</p>
+              <h3 className="text-white font-semibold">Proven Strategy</h3>
+              <p className="text-xs text-slate-500 mt-1">HMM Regime Switching</p>
             </div>
           </div>
 
@@ -213,7 +213,7 @@ export default function HomePage() {
 
               <button
                 disabled={loading}
-                className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold py-4 rounded-xl transition-all transform hover:scale-[1.02] active:scale-[0.98] shadow-lg shadow-cyan-500/20 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full bg-linear-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold py-4 rounded-xl transition-all transform hover:scale-[1.02] active:scale-[0.98] shadow-lg shadow-cyan-500/20 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? (
                   <span className="flex items-center gap-2">
@@ -222,7 +222,7 @@ export default function HomePage() {
                   </span>
                 ) : (
                   <>
-                    {isLogin ? "Access Dashboard" : "Create Free Account"}
+                    {isLogin ? "Login" : "Create Free Account"}
                     <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
                   </>
                 )}
@@ -243,7 +243,7 @@ export default function HomePage() {
                 </div>
                 <div className="text-center">
                   <div className="text-emerald-400 font-bold">100%</div>
-                  <div className="text-xs text-slate-600">Free Forever</div>
+                  <div className="text-xs text-slate-600">Free </div>
                 </div>
                 <div className="text-center">
                   <div className="text-purple-400 font-bold">24/7</div>

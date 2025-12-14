@@ -273,7 +273,7 @@ export default function BacktestPage() {
               <div>
                 <label className="text-xs font-semibold text-slate-400 uppercase mb-3 flex items-center gap-2">
                   <BarChart3 className="w-4 h-4" />
-                  Select Trading Pair
+                  Select Coin
                 </label>
                 <div className="relative">
                   <button

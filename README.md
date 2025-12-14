@@ -49,31 +49,31 @@ AlgoQuant is a **full-stack quantitative trading platform** featuring HMM-SVR hy
 
 <div align="center">
 
-#### 1️⃣ DOGE-USD Performance
+## 1️⃣ DOGE-USD Performance
 ![DOGE Results](./image1.png)
 **Result:** ✅ Gave exceptional returns in a shitty coin like DOGE
 
 ---
 
-#### 2️⃣ ETH-USD Performance  
+## 2️⃣ ETH-USD Performance
 ![ETH Results](./image3.png)
 **Result:** ✅ Exceptional returns with superior risk management vs. passive holding
 
 ---
 
-#### 3️⃣ LINK-USD Performance
+## 3️⃣ LINK-USD Performance
 ![LINK Results](./image2.png)
 **Result:** ✅ Proves strategy effectiveness across mid-cap altcoins
 
 ---
 
-#### 4️⃣ SOL-USD Performance
+## 4️⃣ SOL-USD Performance
 ![SOL Results](./image5.png)
 **Result:** ✅ Works even on high-volatility assets with better risk-adjusted returns
 
 ---
 
-#### 5️⃣ BNB-USD Performance
+## 5️⃣ BNB-USD Performance
 ![BNB Results](./image4.png)
 **Result:** ✅ Strategy massively outperforms buy & hold with controlled drawdown
 
