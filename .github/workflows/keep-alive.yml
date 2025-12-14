@@ -1,0 +1,20 @@
+name: Keep Hugging Face Space Alive
+
+on:
+  schedule:
+    # Run every 5 minutes
+    - cron: '*/5 * * * *'
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Hugging Face Space
+        run: |
+          response=$(curl -s -o /dev/null -w "%{http_code}" https://saadrizvi09-algoquant.hf.space/health)
+          if [ $response -eq 200 ]; then
+            echo "✅ Space is alive! Response: $response"
+          else
+            echo "⚠️ Space returned: $response"
+          fi
