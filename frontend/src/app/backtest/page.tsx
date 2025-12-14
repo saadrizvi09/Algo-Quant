@@ -202,11 +202,11 @@ export default function BacktestPage() {
     <div className="min-h-screen bg-[#0B0E14] text-slate-200">
       <Navbar />
       
-      <main className="max-w-7xl mx-auto px-6 py-8 space-y-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6 sm:space-y-8">
         {/* Header Section */}
-        <div className="flex justify-between items-end border-b border-white/10 pb-6">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end border-b border-white/10 pb-4 sm:pb-6 gap-4">
           <div>
-            <h1 className="text-4xl font-bold text-white">
+            <h1 className="text-3xl sm:text-4xl font-bold text-white">
               Backtest Engine
             </h1>
             <p className="text-slate-400 mt-2">Test strategies on historical data</p>
@@ -219,7 +219,7 @@ export default function BacktestPage() {
         </div>
 
         {/* Controls Card */}
-        <div className="bg-[#151B26] border border-white/5 rounded-2xl p-6 shadow-2xl">
+        <div className="bg-[#151B26] border border-white/5 rounded-2xl p-4 sm:p-6 shadow-2xl">
           <div className="space-y-6">
             
             {/* Strategy Selector */}
@@ -389,7 +389,7 @@ export default function BacktestPage() {
               </div>
 
               {/* Custom Calendar Date Pickers */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Start Date Picker */}
                 <div className="relative group">
                   <label className="text-xs text-slate-400 mb-2 flex items-center gap-1.5 font-medium">

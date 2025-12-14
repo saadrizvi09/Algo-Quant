@@ -261,7 +261,7 @@ export default function LiveTradingPage() {
     <div className="min-h-screen bg-[#0B0E14] text-slate-200">
       <Navbar />
 
-      <main className="max-w-7xl mx-auto px-6 py-8 space-y-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6 sm:space-y-8">
         {/* Header */}
         <div className="flex justify-between items-end border-b border-white/10 pb-6">
           <div>

@@ -154,25 +154,26 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-[#0B0E14] text-slate-200">
       <Navbar />
 
-      <main className="max-w-7xl mx-auto px-6 py-8 space-y-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6 sm:space-y-8">
         {/* Welcome Section */}
-        <div className="flex justify-between items-end border-b border-white/10 pb-6">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end border-b border-white/10 pb-4 sm:pb-6 gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-white">Dashboard</h1>
-            <p className="text-slate-400 mt-1">Real-time portfolio overview</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-white">Dashboard</h1>
+            <p className="text-slate-400 mt-1 text-sm sm:text-base">Real-time portfolio overview</p>
           </div>
-          <div className="flex gap-3">
+          <div className="flex gap-2 sm:gap-3">
             <button
               onClick={refreshAll}
               disabled={refreshing}
-              className="px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-slate-300 hover:bg-white/10 transition flex items-center gap-2"
+              className="px-3 sm:px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-slate-300 hover:bg-white/10 transition flex items-center gap-2 text-sm"
             >
               <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
-              Refresh
+              <span className="hidden sm:inline">Refresh</span>
             </button>
-            <div className="px-3 py-2 bg-cyan-500/10 border border-cyan-500/20 rounded-lg text-cyan-400 text-sm flex items-center gap-2">
+            <div className="px-3 py-2 bg-cyan-500/10 border border-cyan-500/20 rounded-lg text-cyan-400 text-xs sm:text-sm flex items-center gap-2">
               <Wallet size={14} />
-              Simulated Mode
+              <span className="hidden sm:inline">Simulated Mode</span>
+              <span className="sm:hidden">Sim</span>
             </div>
           </div>
         </div>
