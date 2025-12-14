@@ -49,7 +49,7 @@ AlgoQuant is a **full-stack quantitative trading platform** featuring HMM-SVR hy
 
 <div align="center">
 
-#### 1️⃣ BNB-USD Performance
+#### 1️⃣ DOGE-USD Performance
 ![DOGE Results](./image1.png)
 **Result:** ✅ Gave exceptional returns in a shitty coin like DOGE
 
@@ -73,7 +73,7 @@ AlgoQuant is a **full-stack quantitative trading platform** featuring HMM-SVR hy
 
 ---
 
-#### 5️⃣ BTC-USD Performance
+#### 5️⃣ BNB-USD Performance
 ![BNB Results](./image4.png)
 **Result:** ✅ Strategy massively outperforms buy & hold with controlled drawdown
 
