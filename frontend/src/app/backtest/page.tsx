@@ -3,14 +3,20 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Activity, Calendar, TrendingUp, DollarSign, Percent, ChevronDown, Search, Star, Clock, BarChart3, AlertCircle, Cpu, Zap } from "lucide-react";
+import { Activity, Calendar as CalendarIcon, TrendingUp, DollarSign, Percent, ChevronDown, Search, Star, Clock, BarChart3, AlertCircle, Cpu, Zap, CalendarDays } from "lucide-react";
 import Navbar from "@/components/navbar";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { format } from "date-fns";
 
 const TICKERS = [
-  { symbol: "BNB-USD", name: "BNB", logo: "⬡", color: "#F3BA2F" },
-  { symbol: "BTC-USD", name: "Bitcoin", logo: "₿", color: "#F7931A" },
-  { symbol: "ETH-USD", name: "Ethereum", logo: "Ξ", color: "#627EEA" },
-  { symbol: "SOL-USD", name: "Solana", logo: "◎", color: "#14F195" },
+ { "symbol": "BNB-USD", "name": "BNB", "logo": "⬡", "color": "#F3BA2F" },
+  { "symbol": "ETH-USD", "name": "Ethereum", "logo": "Ξ", "color": "#627EEA" },
+    { "symbol": "LINK-USD", "name": "Chainlink", "logo": "⬡", "color": "#2A5ADA" },
+  { "symbol": "SOL-USD", "name": "Solana", "logo": "◎", "color": "#14F195" },
+      { "symbol": "BTC-USD", "name": "Bitcoin", "logo": "₿", "color": "#F7931A" },
+  { "symbol": "DOGE-USD", "name": "Dogecoin", "logo": "Ð", "color": "#C2A633" },
+
 ];
 
 const BACKTEST_STRATEGIES = [
@@ -53,9 +59,13 @@ export default function BacktestPage() {
   const [favorites, setFavorites] = useState<string[]>(["BNB-USD"]);
   
   const [strategy, setStrategy] = useState("hmm");
-  const [ticker, setTicker] = useState("SOL-USD");
+  const [ticker, setTicker] = useState("BNB-USD");
   const [startDate, setStartDate] = useState("2022-01-01");
   const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
+  const [startDateObj, setStartDateObj] = useState<Date>(new Date("2022-01-01"));
+  const [endDateObj, setEndDateObj] = useState<Date>(new Date());
+  const [startDateOpen, setStartDateOpen] = useState(false);
+  const [endDateOpen, setEndDateOpen] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -85,6 +95,8 @@ export default function BacktestPage() {
     
     setStartDate(start.toISOString().split('T')[0]);
     setEndDate(end.toISOString().split('T')[0]);
+    setStartDateObj(start);
+    setEndDateObj(end);
   };
 
   const selectedTicker = TICKERS.find(t => t.symbol === ticker) || TICKERS[0];
@@ -358,41 +370,169 @@ export default function BacktestPage() {
             {/* Date Range Selector */}
             <div>
               <label className="text-xs font-semibold text-slate-400 uppercase mb-3 flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-cyan-400" />
+                <CalendarIcon className="w-4 h-4 text-cyan-400" />
                 Backtest Period
               </label>
               
-              <div className="flex gap-2 mb-3">
+              {/* Quick Range Buttons */}
+              <div className="flex gap-2 mb-4 flex-wrap">
                 {quickRanges.map((range) => (
                   <button
                     key={range.label}
                     onClick={() => setQuickRange(range.days)}
-                    className="px-4 py-2 bg-[#0B0E14] border border-white/10 rounded-lg text-sm text-slate-300 hover:border-cyan-500/50 hover:text-white transition"
+                    className="px-4 py-2 bg-linear-to-br from-[#0B0E14] to-[#151B26] border border-white/10 rounded-lg text-sm text-slate-300 hover:border-cyan-500/50 hover:text-white hover:shadow-lg hover:shadow-cyan-500/10 transition-all duration-200 font-medium"
                   >
                     {range.label}
                   </button>
                 ))}
               </div>
 
+              {/* Custom Calendar Date Pickers */}
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs text-slate-500 mb-2 block">Start Date</label>
-                  <input
-                    type="date"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    className="w-full px-4 py-3 bg-[#31343a] border border-white/10 rounded-xl text-white focus:outline-none focus:border-cyan-500/50 transition cursor-pointer"
-                  />
+                {/* Start Date Picker */}
+                <div className="relative group">
+                  <label className="text-xs text-slate-400 mb-2 flex items-center gap-1.5 font-medium">
+                    <Clock className="w-3.5 h-3.5 text-emerald-400" />
+                    Start Date
+                  </label>
+                  <Popover open={startDateOpen} onOpenChange={setStartDateOpen}>
+                    <PopoverTrigger asChild>
+                      <button
+                        className="w-full px-4 py-3.5 bg-linear-to-br from-[#1a2332] to-[#0B0E14] border border-white/10 rounded-xl text-white focus:outline-none focus:border-emerald-500/60 focus:shadow-lg focus:shadow-emerald-500/10 transition-all duration-200 hover:border-emerald-500/40 font-medium text-left flex items-center justify-between group"
+                      >
+                        <span className="flex items-center gap-2">
+                          <CalendarDays className="w-4 h-4 text-emerald-400" />
+                          {startDateObj ? format(startDateObj, "PPP") : "Pick a date"}
+                        </span>
+                        <ChevronDown className="w-4 h-4 text-slate-400 group-hover:text-emerald-400 transition-colors" />
+                        <div className="absolute inset-0 rounded-xl bg-linear-to-r from-emerald-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent 
+                      className="w-auto p-0 bg-[#0B0E14] border border-white/10 shadow-2xl z-9999" 
+                      align="start"
+                      sideOffset={8}
+                    >
+                      <div className="p-4">
+                        <Calendar
+                          mode="single"
+                          selected={startDateObj}
+                          defaultMonth={startDateObj}
+                          onSelect={(date) => {
+                            if (date) {
+                              setStartDateObj(date);
+                              setStartDate(date.toISOString().split('T')[0]);
+                              setStartDateOpen(false);
+                            }
+                          }}
+                          showOutsideDays={false}
+                          captionLayout="dropdown"
+                          fromYear={2020}
+                          toYear={2030}
+                          className="rounded-xl"
+                          classNames={{
+                            months: "flex flex-col",
+                            month: "space-y-4",
+                            month_caption: "flex justify-center pt-1 relative items-center h-10 mb-2",
+                            caption_label: "hidden",
+                            nav: "flex items-center gap-1",
+                            button_previous: "absolute left-0 h-7 w-7 bg-transparent hover:bg-emerald-500/20 text-slate-400 hover:text-emerald-400 rounded transition-colors flex items-center justify-center",
+                            button_next: "absolute right-0 h-7 w-7 bg-transparent hover:bg-emerald-500/20 text-slate-400 hover:text-emerald-400 rounded transition-colors flex items-center justify-center",
+                            dropdowns: "flex gap-2 items-center justify-center",
+                            dropdown_root: "relative",
+                            dropdown: "appearance-none bg-[#1a2332] text-white border border-white/20 rounded-md px-3 py-1.5 text-sm font-medium cursor-pointer hover:border-emerald-500/50 transition-colors focus:outline-none focus:border-emerald-500",
+                            weekdays: "flex mt-2",
+                            weekday: "text-slate-500 text-xs font-medium w-9 text-center",
+                            weeks: "space-y-1",
+                            week: "flex gap-1",
+                            day: "h-9 w-9 p-0 font-normal text-sm text-slate-300 hover:bg-emerald-500/20 hover:text-white rounded-md transition-colors flex items-center justify-center",
+                            selected: "bg-emerald-500 text-white hover:bg-emerald-600 font-semibold",
+                            today: "bg-cyan-500/20 text-cyan-300 font-semibold",
+                            outside: "text-slate-700 opacity-40",
+                            disabled: "text-slate-700 opacity-30",
+                          }}
+                        />
+                      </div>
+                    </PopoverContent>
+                  </Popover>
                 </div>
 
-                <div>
-                  <label className="text-xs text-slate-500 mb-2 block">End Date</label>
-                  <input
-                    type="date"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    className="w-full px-4 py-3 bg-[#31343a] border border-white/10 rounded-xl text-white focus:outline-none focus:border-cyan-500/50 transition cursor-pointer"
-                  />
+                {/* End Date Picker */}
+                <div className="relative group">
+                  <label className="text-xs text-slate-400 mb-2 flex items-center gap-1.5 font-medium">
+                    <Clock className="w-3.5 h-3.5 text-cyan-400" />
+                    End Date
+                  </label>
+                  <Popover open={endDateOpen} onOpenChange={setEndDateOpen}>
+                    <PopoverTrigger asChild>
+                      <button
+                        className="w-full px-4 py-3.5 bg-linear-to-br from-[#1a2332] to-[#0B0E14] border border-white/10 rounded-xl text-white focus:outline-none focus:border-cyan-500/60 focus:shadow-lg focus:shadow-cyan-500/10 transition-all duration-200 hover:border-cyan-500/40 font-medium text-left flex items-center justify-between group"
+                      >
+                        <span className="flex items-center gap-2">
+                          <CalendarDays className="w-4 h-4 text-cyan-400" />
+                          {endDateObj ? format(endDateObj, "PPP") : "Pick a date"}
+                        </span>
+                        <ChevronDown className="w-4 h-4 text-slate-400 group-hover:text-cyan-400 transition-colors" />
+                        <div className="absolute inset-0 rounded-xl bg-linear-to-r from-cyan-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent 
+                      className="w-auto p-0 bg-[#0B0E14] border border-white/10 shadow-2xl z-9999" 
+                      align="start"
+                      sideOffset={8}
+                    >
+                      <div className="p-4">
+                        <Calendar
+                          mode="single"
+                          selected={endDateObj}
+                          defaultMonth={endDateObj}
+                          onSelect={(date) => {
+                            if (date) {
+                              setEndDateObj(date);
+                              setEndDate(date.toISOString().split('T')[0]);
+                              setEndDateOpen(false);
+                            }
+                          }}
+                          showOutsideDays={false}
+                          captionLayout="dropdown"
+                          fromYear={2020}
+                          toYear={2030}
+                          className="rounded-xl"
+                          classNames={{
+                            months: "flex flex-col",
+                            month: "space-y-4",
+                            month_caption: "flex justify-center pt-1 relative items-center h-10 mb-2",
+                            caption_label: "hidden",
+                            nav: "flex items-center gap-1",
+                            button_previous: "absolute left-0 h-7 w-7 bg-transparent hover:bg-cyan-500/20 text-slate-400 hover:text-cyan-400 rounded transition-colors flex items-center justify-center",
+                            button_next: "absolute right-0 h-7 w-7 bg-transparent hover:bg-cyan-500/20 text-slate-400 hover:text-cyan-400 rounded transition-colors flex items-center justify-center",
+                            dropdowns: "flex gap-2 items-center justify-center",
+                            dropdown_root: "relative",
+                            dropdown: "appearance-none bg-[#1a2332] text-white border border-white/20 rounded-md px-3 py-1.5 text-sm font-medium cursor-pointer hover:border-cyan-500/50 transition-colors focus:outline-none focus:border-cyan-500",
+                            weekdays: "flex mt-2",
+                            weekday: "text-slate-500 text-xs font-medium w-9 text-center",
+                            weeks: "space-y-1",
+                            week: "flex gap-1",
+                            day: "h-9 w-9 p-0 font-normal text-sm text-slate-300 hover:bg-cyan-500/20 hover:text-white rounded-md transition-colors flex items-center justify-center",
+                            selected: "bg-cyan-500 text-white hover:bg-cyan-600 font-semibold",
+                            today: "bg-emerald-500/20 text-emerald-300 font-semibold",
+                            outside: "text-slate-700 opacity-40",
+                            disabled: "text-slate-700 opacity-30",
+                          }}
+                        />
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </div>
+              
+              {/* Date Range Summary */}
+              <div className="mt-3 p-3 bg-[#0B0E14] border border-white/5 rounded-lg">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-500">Selected Range:</span>
+                  <span className="text-slate-300 font-medium">
+                    {Math.ceil((new Date(endDate).getTime() - new Date(startDate).getTime()) / (1000 * 60 * 60 * 24))} days
+                  </span>
                 </div>
               </div>
             </div>
@@ -585,9 +725,7 @@ export default function BacktestPage() {
               </ResponsiveContainer>
             ) : (
               <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-3">
-                <div className="p-4 rounded-2xl bg-cyan-500/10">
-                  <Calendar className="w-12 h-12 text-cyan-400" />
-                </div>
+                
                 <p className="text-lg font-medium">Ready to Backtest</p>
                 <p className="text-sm text-slate-500">Select your parameters and run simulation</p>
               </div>

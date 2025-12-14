@@ -49,13 +49,35 @@ export default function HomePage() {
         localStorage.setItem("token", data.access_token);
         // 2. Wait a bit to ensure token is saved
         await new Promise(resolve => setTimeout(resolve, 100));
-        // 3. Redirect to Dashboard
+        // 3. Redirect to Backtest Page
         router.push("/backtest");
       } else {
         // --- SIGNUP SUCCESS ---
-        setSuccessMsg("Account created! Please login.");
-        setIsLogin(true); // Switch to login view
-        setFormData({ email: "", password: "" });
+        // Auto-login after successful signup
+        try {
+          const loginRes = await fetch("http://127.0.0.1:8000/api/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(formData),
+          });
+          
+          const loginData = await loginRes.json();
+          
+          if (loginRes.ok) {
+            localStorage.setItem("token", loginData.access_token);
+            await new Promise(resolve => setTimeout(resolve, 100));
+            router.push("/backtest");
+          } else {
+            // Fallback to manual login
+            setSuccessMsg("Account created! Logging you in...");
+            setIsLogin(true);
+          }
+        } catch (err) {
+          // Fallback to manual login
+          setSuccessMsg("Account created! Please login.");
+          setIsLogin(true);
+          setFormData({ email: "", password: "" });
+        }
       }
     } catch (err: any) {
       setError(err.message);

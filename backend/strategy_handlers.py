@@ -29,8 +29,9 @@ class BaseStrategyHandler:
 
 class HMMStrategyHandler(BaseStrategyHandler):
     """
-    HMM Regime Filter Strategy Handler
-    Uses Hidden Markov Model to detect market regimes and filters trades
+    HMM-SVR Honest Leverage Strategy Handler (Walk-Forward)
+    Uses strict walk-forward approach: only uses data available up to current moment.
+    Applies dynamic leverage (0x, 1x, 3x) based on regime and predicted risk.
     """
     
     def __init__(self, short_window=12, long_window=26, **params):
@@ -38,47 +39,63 @@ class HMMStrategyHandler(BaseStrategyHandler):
         self.short_window = short_window
         self.long_window = long_window
         
-        # Use deque for efficient rolling window of prices
-        self.prices = deque(maxlen=long_window + 50)
-        self.log_returns = deque(maxlen=long_window + 50)
-        self.volatility = deque(maxlen=long_window + 50)
+        # Use deque for efficient rolling window (252 days = 1 year)
+        self.lookback_window = 252
+        self.prices = deque(maxlen=self.lookback_window)
+        self.log_returns = deque(maxlen=self.lookback_window)
+        self.volatility = deque(maxlen=self.lookback_window)
+        self.downside_vol = deque(maxlen=self.lookback_window)
         
-        # Load pre-trained HMM model
-        self.model = None
-        self.high_vol_state = None
+        # Load pre-trained HMM-SVR model
+        self.hmm_model = None
+        self.svr_model = None
+        self.svr_scaler = None
+        self.state_mapping = None
+        self.avg_train_vol = None
+        self.n_states = 3
         self._load_model()
         
-        print(f"[HMMHandler] Initialized with windows: short={short_window}, long={long_window}")
-        if self.model is None:
-            print(f"[HMMHandler] ⚠️  WARNING: No trained model found. Using simple MA crossover strategy.")
+        print(f"[HMMHandler] Initialized HMM-SVR Honest Strategy")
+        print(f"[HMMHandler] Windows: EMA={short_window}/{long_window}, Lookback={self.lookback_window}")
+        if self.hmm_model is None:
+            print(f"[HMMHandler] ⚠️  WARNING: No trained model. Using simple MA crossover.")
     
     def _load_model(self):
-        """Load the pre-trained HMM model from disk"""
+        """Load the pre-trained HMM-SVR hybrid model from disk"""
         model_path = os.path.join(os.path.dirname(__file__), 'hmm_model.pkl')
         
         if os.path.exists(model_path):
             try:
                 model_data = joblib.load(model_path)
-                self.model = model_data['model']
-                self.high_vol_state = model_data['high_vol_state']
-                print(f"[HMMHandler] ✅ Loaded pre-trained HMM model from {model_path}")
-                print(f"[HMMHandler] High volatility state: {self.high_vol_state}")
+                self.hmm_model = model_data['hmm_model']
+                self.svr_model = model_data['svr_model']
+                self.svr_scaler = model_data['svr_scaler']
+                self.state_mapping = model_data['state_mapping']
+                self.avg_train_vol = model_data['avg_train_vol']
+                self.n_states = model_data['n_states']
+                print(f"[HMMHandler] ✅ Loaded HMM-SVR model from {model_path}")
+                print(f"[HMMHandler] States: 0=Low Vol, {self.n_states-1}=High Vol")
+                print(f"[HMMHandler] Avg training vol: {self.avg_train_vol:.6f}")
             except Exception as e:
                 print(f"[HMMHandler] ❌ Error loading model: {e}")
-                self.model = None
+                self.hmm_model = None
         else:
             print(f"[HMMHandler] ℹ️  Model file not found at {model_path}")
-            print(f"[HMMHandler] Run backtest with model saving to generate hmm_model.pkl")
+            print(f"[HMMHandler] Run backtest to generate hmm_model.pkl")
     
     def get_signal(self, price: float) -> str:
         """
-        Generate trading signal based on current price
+        Generate trading signal with leverage (Walk-Forward Honest Approach)
         
         Logic:
-        1. Maintain rolling window of prices
-        2. Calculate log returns and volatility
-        3. If model loaded: Use HMM regime prediction + EMA crossover
-        4. If no model: Fall back to simple EMA crossover
+        1. Maintain rolling window of historical prices (252 days)
+        2. Calculate features using ONLY historical data
+        3. Use HMM to predict current regime (using full history sequence)
+        4. Use SVR to predict next-day volatility (using today's features)
+        5. Calculate leverage: 0x (crash), 1x (normal), 3x (certainty)
+        6. Return signal (HOLD forced in crash regime)
+        
+        Returns: "BUY", "SELL", or "HOLD"
         """
         # Add price to rolling window
         self.prices.append(price)
@@ -88,53 +105,104 @@ class HMMStrategyHandler(BaseStrategyHandler):
             log_ret = np.log(self.prices[-1] / self.prices[-2])
             self.log_returns.append(log_ret)
         
-        # Calculate rolling volatility
+        # Calculate rolling volatility (10-period to match training)
         if len(self.log_returns) >= 10:
             recent_returns = list(self.log_returns)[-10:]
             vol = np.std(recent_returns)
             self.volatility.append(vol)
+            
+            # Calculate downside volatility (negative returns only)
+            negative_returns = [r for r in recent_returns if r < 0]
+            dside_vol = np.std(negative_returns) if len(negative_returns) > 0 else 0
+            self.downside_vol.append(dside_vol)
         
         # Wait until we have enough data
-        if len(self.prices) < self.long_window:
+        if len(self.prices) < max(self.long_window, 30):
             return "HOLD"
         
-        # Convert to pandas for easy calculation
+        # Convert to pandas for EMA calculation
         price_series = pd.Series(list(self.prices))
         
-        # Calculate EMAs
+        # Calculate EMAs using ONLY historical data (honest approach)
         ema_short = price_series.ewm(span=self.short_window).mean().iloc[-1]
         ema_long = price_series.ewm(span=self.long_window).mean().iloc[-1]
         
         # Generate base signal (EMA crossover)
         base_signal = "BUY" if ema_short > ema_long else "SELL"
         
-        # If model is loaded, use regime filter
-        if self.model is not None and len(self.log_returns) >= 10 and len(self.volatility) >= 1:
+        # If model loaded, use honest HMM-SVR prediction
+        if (self.hmm_model is not None and self.svr_model is not None and 
+            len(self.log_returns) >= 30 and len(self.volatility) >= 10):
             try:
-                # Prepare features (same as training)
-                current_return = self.log_returns[-1] * 100  # Scale to match training
-                current_vol = self.volatility[-1] * 100
+                # A. Honest Regime Detection (using full historical sequence)
+                # Prepare features for ALL history in window
+                returns_array = np.array(list(self.log_returns))
+                vol_array = np.array(list(self.volatility))
                 
-                features = np.array([[current_return, current_vol]])
+                # Pad if needed to match lengths
+                min_len = min(len(returns_array), len(vol_array))
+                X_history = np.column_stack([
+                    returns_array[-min_len:] * 100,
+                    vol_array[-min_len:] * 100
+                ])
                 
-                # Predict current regime
-                current_regime = self.model.predict(features)[0]
+                # Predict sequence and get CURRENT regime
+                hidden_states = self.hmm_model.predict(X_history)
+                current_state_raw = hidden_states[-1]
+                current_regime = self.state_mapping[current_state_raw]
                 
-                # Filter signal based on regime
-                # Only take BUY signals when NOT in high volatility regime
-                if current_regime == self.high_vol_state:
-                    # High volatility - avoid trading
-                    return "HOLD"
-                else:
-                    # Low/medium volatility - use EMA signal
-                    return base_signal
+                # B. Honest Volatility Prediction (using today's features)
+                svr_features = np.array([[
+                    self.log_returns[-1],
+                    self.volatility[-1],
+                    self.downside_vol[-1],
+                    current_regime
+                ]])
+                
+                # Scale and predict
+                svr_features_scaled = self.svr_scaler.transform(svr_features)
+                predicted_vol = self.svr_model.predict(svr_features_scaled)[0]
+                risk_ratio = predicted_vol / self.avg_train_vol
+                
+                # C. Calculate Leverage
+                if current_regime == self.n_states - 1:  # Crash regime
+                    leverage = 0.0
+                    signal = "HOLD"  # Force exit
+                elif current_regime == 0 and risk_ratio < 0.5:  # Certainty
+                    leverage = 3.0
+                    signal = base_signal
+                else:  # Normal
+                    leverage = 1.0
+                    signal = base_signal
+                
+                # Store for external access
+                self.current_leverage = leverage
+                self.current_regime = current_regime
+                self.current_risk_ratio = risk_ratio
+                
+                print(f"[HMMHandler] Regime={current_regime}, Risk={risk_ratio:.3f}, Lev={leverage}x, Signal={signal}")
+                return signal
                     
             except Exception as e:
-                print(f"[HMMHandler] Error in regime prediction: {e}")
+                print(f"[HMMHandler] Error in prediction: {e}")
+                self.current_leverage = 1.0
                 return base_signal
         
-        # Fallback: Simple EMA crossover
+        # Fallback: Simple EMA crossover with 1x leverage
+        self.current_leverage = 1.0
         return base_signal
+    
+    def get_leverage(self) -> float:
+        """Return current leverage multiplier (0x, 1x, or 3x)"""
+        return getattr(self, 'current_leverage', 1.0)
+    
+    def get_regime(self) -> Optional[int]:
+        """Return current market regime (0=Low Vol, 1=Neutral, 2=High Vol)"""
+        return getattr(self, 'current_regime', None)
+    
+    def get_risk_ratio(self) -> Optional[float]:
+        """Return current risk ratio (predicted_vol / avg_train_vol)"""
+        return getattr(self, 'current_risk_ratio', None)
 
 
 class PairsStrategyHandler(BaseStrategyHandler):
