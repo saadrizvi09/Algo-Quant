@@ -210,9 +210,13 @@ python train_hmm_model.py  # Train HMM (optional but recommended)
 cd ../frontend
 npm install
 
-# 4. Run (2 terminals)
+# 4. Run
+# Option A: Run manually (2 terminals)
 # Terminal 1: uvicorn main:app --reload  (from backend/)
 # Terminal 2: npm run dev  (from frontend/)
+
+# Option B: Run all at once (Windows)
+.\dev.bat
 ```
 
 **Access:** Frontend at `http://localhost:3000` • Backend API docs at `http://127.0.0.1:8000/docs`
