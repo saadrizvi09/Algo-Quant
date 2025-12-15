@@ -513,8 +513,8 @@ function Footer() {
       <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-6">
         <p>© 2025 AlgoQuant Systems.</p>
         <div className="flex gap-6">
-          <a href="#" className="hover:text-cyan-400 transition-colors">Privacy</a>
-          <a href="#" className="hover:text-cyan-400 transition-colors">Terms</a>
+          <a href="/privacy" className="hover:text-cyan-400 transition-colors">Privacy</a>
+          <a href="/terms" className="hover:text-cyan-400 transition-colors">Terms</a>
           <a href="https://www.instagram.com/algoquant_official?igsh=c2cwODEzN3R3bDRq" className="hover:text-cyan-400 transition-colors">Instagram</a>
         </div>
       </div>
