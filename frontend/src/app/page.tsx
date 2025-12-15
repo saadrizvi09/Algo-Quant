@@ -120,7 +120,7 @@ export default function HomePage() {
             </div>
             <div className="p-4 rounded-xl bg-linear-to-br from-blue-500/10 to-transparent border border-blue-500/20 backdrop-blur-sm hover:border-blue-500/40 transition-all group">
               <Cpu className="text-blue-400 mb-2 group-hover:scale-110 transition-transform" />
-              <h3 className="text-white font-semibold">Proven Strategy</h3>
+              <h3 className="text-white font-semibold">Backtesting </h3>
               <p className="text-xs text-slate-500 mt-1">HMM Regime Switching</p>
             </div>
           </div>
