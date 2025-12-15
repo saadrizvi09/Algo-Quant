@@ -1,4 +1,7 @@
 {
+  "scripts": {
+    "postinstall": "cd frontend && npm install"
+  },
   "dependencies": {
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.0.0-rc.10",
