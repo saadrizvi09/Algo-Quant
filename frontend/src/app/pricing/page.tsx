@@ -81,7 +81,7 @@ export default function PricingPage() {
             </div>
             <h3 className="text-2xl font-bold text-white mb-2">Pro Quant</h3>
             <div className="flex items-baseline gap-1 mb-6">
-              <span className="text-4xl font-bold text-white">$49</span>
+              <span className="text-4xl font-bold text-white">$4.99</span>
               <span className="text-slate-500">/month</span>
             </div>
             <p className="text-slate-400 mb-8 text-sm">For serious quants requiring dedicated infrastructure and lower latency.</p>
