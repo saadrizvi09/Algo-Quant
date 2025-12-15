@@ -39,10 +39,17 @@ class SimulatedTradingSession:
             self.base_asset = "ETH"
             self.quote_asset = "USDT"
         else:
-            # Remove USDT first, then BTC (order matters)
-            temp = symbol.replace("USDT", "")
-            self.base_asset = temp.replace("BTC", "") if temp != symbol else temp
-            self.quote_asset = "USDT" if "USDT" in symbol else "BTC"
+            # Parse trading pair correctly (e.g., BTCUSDT -> BTC, USDT)
+            if symbol.endswith("USDT"):
+                self.base_asset = symbol[:-4]  # Remove "USDT" suffix
+                self.quote_asset = "USDT"
+            elif symbol.endswith("BTC"):
+                self.base_asset = symbol[:-3]  # Remove "BTC" suffix
+                self.quote_asset = "BTC"
+            else:
+                # Default fallback
+                self.base_asset = symbol
+                self.quote_asset = "USDT"
         
         # Session state
         self.is_running = True
@@ -52,6 +59,8 @@ class SimulatedTradingSession:
         self.trades_count = 0
         self.position = None  # None, 'LONG', or 'SHORT'
         self.entry_price = None
+        
+        print(f"[SimTrading] Parsed symbol: {symbol} -> base={self.base_asset}, quote={self.quote_asset}")
         
         # Initialize strategy handler with symbol for pre-loading data
         try:
