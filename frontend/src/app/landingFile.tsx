@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useState, useEffect } from "react";
+import React, { useRef, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Stars, MeshDistortMaterial, Float, Environment, PerspectiveCamera } from "@react-three/drei";
 import { 
@@ -15,7 +15,6 @@ import {
 import { ReactLenis } from "@studio-freight/react-lenis";
 import { ArrowRight, Zap, Shield, Cpu, Activity, BarChart3, Lock } from "lucide-react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import * as THREE from "three";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -292,7 +291,7 @@ function HeroSection() {
             <span className="relative">
               <span className="absolute -inset-1 blur-2xl bg-gradient-to-r from-cyan-400 to-blue-600 opacity-30" />
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-600 relative">
-                Supremacy
+                Quantitative Trading
               </span>
             </span>
           </motion.h1>
@@ -354,10 +353,10 @@ function BentoGridFeatures() {
           </p>
         </motion.div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 auto-rows-[240px]">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 auto-rows-[240px]">
           
           {/* Large Card (2x2) */}
-          <SpotlightCard className="md:col-span-2 md:row-span-2 flex flex-col justify-end group">
+          <SpotlightCard className="md:col-span-1 md:row-span-2 flex flex-col justify-end group">
              <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/90 z-0" />
              <div className="absolute top-8 right-8 p-4 bg-cyan-500/10 rounded-2xl text-cyan-400 border border-cyan-500/20 backdrop-blur-md shadow-lg shadow-cyan-900/20">
                <Activity size={32} />
@@ -375,13 +374,13 @@ function BentoGridFeatures() {
                  {/* SVG Line with animation */}
                  <svg className="absolute bottom-0 left-0 right-0 w-full h-40 text-cyan-400" preserveAspectRatio="none">
                     <motion.path 
-                      d="M0,100 C100,80 200,120 300,60 S500,80 800,20" 
+                      d="M0,100 C100,80 200,120 300,60 S500,80 800,20"
                       fill="none" 
                       stroke="currentColor" 
                       strokeWidth="3"
                       initial={{ pathLength: 0 }}
-                      whileInView={{ pathLength: 1 }}
-                      transition={{ duration: 2, ease: "easeInOut" }}
+                      animate={{ pathLength: 1 }}
+                      transition={{ duration: 3, ease: "easeInOut", repeat: Infinity }}
                     />
                  </svg>
                  {/* Scanning Line */}
@@ -391,6 +390,36 @@ function BentoGridFeatures() {
                     className="absolute top-0 bottom-0 w-[1px] bg-cyan-400/50 shadow-[0_0_10px_rgba(6,182,212,0.8)]"
                  />
                </div>
+             </div>
+          </SpotlightCard>
+
+          {/* Backtest Engine - Moved & Resized to match Real-Time Analytics */}
+          <SpotlightCard className="md:col-span-1 md:row-span-2 p-10 flex flex-col justify-between group">
+             <div className="relative z-10">
+                <h3 className="text-3xl font-bold text-white mb-4">Backtest Engine</h3>
+                <p className="text-slate-300 text-lg mb-8">Prove the edge. Compare our ML strategies against buy-and-hold from any date in history.</p>
+             </div>
+             <div className="w-32 h-32 bg-gradient-to-br from-blue-600/20 to-cyan-500/20 rounded-full blur-2xl absolute top-10 right-10 pointer-events-none" />
+             <div className="relative z-10 h-48 w-full flex items-end justify-between gap-1 p-4 bg-black/40 border border-white/5 rounded-xl overflow-hidden backdrop-blur-sm">
+                {[20, 45, 30, 80, 55, 90, 70].map((h, i) => (
+                  <motion.div
+                    key={i}
+                    animate={{
+                      height: [
+                        `${h}%`,
+                        `${Math.max(10, h + (i % 2 === 0 ? 20 : -15))}%`,
+                        `${Math.min(90, h + (i % 2 === 0 ? -10 : 25))}%`,
+                        `${h}%`
+                      ]
+                    }}
+                    transition={{
+                      duration: 2 + (i % 3) * 0.5,
+                      repeat: Infinity,
+                      ease: "easeInOut",
+                    }}
+                    className="w-full bg-gradient-to-t from-cyan-600/80 to-cyan-400 rounded-t-sm"
+                  />
+                ))}
              </div>
           </SpotlightCard>
 
@@ -416,26 +445,25 @@ function BentoGridFeatures() {
             </div>
           </SpotlightCard>
 
-           {/* Wide Card (2 cols) */}
-           <SpotlightCard className="md:col-span-2 p-8 flex flex-row items-center justify-between gap-8">
-             <div className="flex-1">
-                <h3 className="text-2xl font-bold text-white mb-2">Backtest Engine</h3>
-                <p className="text-slate-400">Prove the edge. Compare our ML strategies against buy-and-hold from any date in history.</p>
-             </div>
-             <div className="w-32 h-32 bg-gradient-to-br from-blue-600/20 to-cyan-500/20 rounded-full blur-2xl absolute right-10" />
-             <div className="relative z-10 p-4 bg-white/5 border border-white/10 rounded-xl backdrop-blur-md">
-                <BarChart3 size={32} className="text-cyan-400" />
+           {/* Dynamic Leverage */}
+           <SpotlightCard className="p-8 flex flex-col justify-between">
+             <div className="w-12 h-12 rounded-full bg-orange-500/10 flex items-center justify-center border border-orange-500/20 mb-4">
+              <Zap size={24} className="text-orange-400" />
+            </div>
+             <div>
+               <h3 className="text-xl font-bold text-white mb-2">Dynamic Leverage</h3>
+               <p className="text-slate-400 text-sm">Features our Dynamic Leverage Accelerator adjusted by live Risk Factors.</p>
              </div>
           </SpotlightCard>
 
-           {/* Tall Card */}
-           <SpotlightCard className="md:row-span-1 p-8 flex flex-col justify-between">
-             <div className="w-12 h-12 rounded-full bg-orange-500/10 flex items-center justify-center border border-orange-500/20">
-              <Zap size={24} className="text-orange-400" />
+          {/* Encryption */}
+          <SpotlightCard className="p-8 flex flex-col justify-between">
+            <div className="w-12 h-12 rounded-full bg-purple-500/10 flex items-center justify-center border border-purple-500/20 mb-4">
+              <Lock size={24} className="text-purple-400" />
             </div>
             <div>
-              <h3 className="text-xl font-bold text-white mb-2">Dynamic Leverage</h3>
-              <p className="text-slate-400 text-sm">Features our Dynamic Leverage Accelerator adjusted by live Risk Factors.</p>
+              <h3 className="text-xl font-bold text-white mb-2">AES-256 Encryption</h3>
+              <p className="text-slate-400 text-sm">Your data is secured with military-grade AES-256 encryption and Argon2 hashing.</p>
             </div>
           </SpotlightCard>
 
@@ -480,16 +508,14 @@ function CallToAction({ router }: { router: any }) {
 }
 
 function Footer() {
-  const router = useRouter();
-  
   return (
     <footer className="py-12 text-center text-slate-600 text-sm relative z-10 border-t border-white/5 bg-[#050505] backdrop-blur-xl">
       <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-6">
         <p>© 2025 AlgoQuant Systems.</p>
         <div className="flex gap-6">
-          <button onClick={() => router.push("/privacy")} className="hover:text-cyan-400 transition-colors cursor-pointer">Privacy</button>
-          <button onClick={() => router.push("/terms")} className="hover:text-cyan-400 transition-colors cursor-pointer">Terms</button>
-          <a href="https://www.instagram.com/algoquant_official?igsh=c2cwODEzN3R3bDRq" target="_blank" rel="noopener noreferrer" className="hover:text-cyan-400 transition-colors">Instagram</a>
+          <a href="#" className="hover:text-cyan-400 transition-colors">Privacy</a>
+          <a href="#" className="hover:text-cyan-400 transition-colors">Terms</a>
+          <a href="https://www.instagram.com/algoquant_official?igsh=c2cwODEzN3R3bDRq" className="hover:text-cyan-400 transition-colors">Instagram</a>
         </div>
       </div>
     </footer>
