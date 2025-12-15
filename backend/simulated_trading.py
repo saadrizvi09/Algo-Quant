@@ -35,7 +35,7 @@ class SimulatedTradingSession:
         
         # Extract base and quote from symbol
         # For Pairs Strategy, we'll use ETH as the traded asset
-        if strategy == "Pairs Strategy":
+        if strategy.lower() == "pairs" or strategy == "Pairs Strategy":
             self.base_asset = "ETH"
             self.quote_asset = "USDT"
         else:
@@ -125,7 +125,7 @@ class SimulatedTradingSession:
                 return
             
             # Special handling for Pairs Trading strategy
-            if self.strategy == "Pairs Strategy":
+            if self.strategy.lower() == "pairs" or self.strategy == "Pairs Strategy":
                 # Fetch both ETH and BTC prices
                 eth_price = simulated_exchange.get_current_price("ETH", "USDT")
                 btc_price = simulated_exchange.get_current_price("BTC", "USDT")
