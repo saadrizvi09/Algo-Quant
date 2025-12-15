@@ -32,12 +32,15 @@ class HMMStrategyHandler(BaseStrategyHandler):
     HMM-SVR Honest Leverage Strategy Handler (Walk-Forward)
     Uses strict walk-forward approach: only uses data available up to current moment.
     Applies dynamic leverage (0x, 1x, 3x) based on regime and predicted risk.
+    
+    IMPORTANT: Pre-loads historical data to enable immediate trading decisions
     """
     
-    def __init__(self, short_window=12, long_window=26, **params):
+    def __init__(self, short_window=12, long_window=26, symbol="BTC", **params):
         super().__init__(**params)
         self.short_window = short_window
         self.long_window = long_window
+        self.symbol = symbol  # For pre-loading data
         
         # Use deque for efficient rolling window (252 days = 1 year)
         self.lookback_window = 252
@@ -55,8 +58,12 @@ class HMMStrategyHandler(BaseStrategyHandler):
         self.n_states = 3
         self._load_model()
         
+        # Pre-load historical data for immediate trading
+        self._preload_historical_data()
+        
         print(f"[HMMHandler] Initialized HMM-SVR Honest Strategy")
         print(f"[HMMHandler] Windows: EMA={short_window}/{long_window}, Lookback={self.lookback_window}")
+        print(f"[HMMHandler] Pre-loaded {len(self.prices)} historical price points")
         if self.hmm_model is None:
             print(f"[HMMHandler] ⚠️  WARNING: No trained model. Using simple MA crossover.")
     
@@ -82,6 +89,62 @@ class HMMStrategyHandler(BaseStrategyHandler):
         else:
             print(f"[HMMHandler] ℹ️  Model file not found at {model_path}")
             print(f"[HMMHandler] Run backtest to generate hmm_model.pkl")
+    
+    def _preload_historical_data(self):
+        """Pre-load historical price data for immediate signal generation"""
+        try:
+            import yfinance as yf
+            
+            # Map symbol to Yahoo Finance ticker
+            symbol_map = {
+                "BTC": "BTC-USD",
+                "ETH": "ETH-USD",
+                "BNB": "BNB-USD",
+                "SOL": "SOL-USD",
+                "LINK": "LINK-USD"
+            }
+            ticker_symbol = symbol_map.get(self.symbol, f"{self.symbol}-USD")
+            
+            # Fetch daily data for the lookback period
+            ticker = yf.Ticker(ticker_symbol)
+            hist = ticker.history(period="1y", interval="1d")  # 1 year of daily data
+            
+            if hist.empty:
+                print(f"[HMMHandler] ⚠️ Could not pre-load historical data for {ticker_symbol}")
+                return
+            
+            prices = hist['Close'].dropna().values
+            
+            # Take the last N data points we need
+            n_points = min(self.lookback_window, len(prices))
+            prices = prices[-n_points:]
+            
+            # Feed prices into our deques
+            for i, price in enumerate(prices):
+                self.prices.append(price)
+                
+                # Calculate log return
+                if i > 0:
+                    log_ret = np.log(prices[i] / prices[i-1])
+                    self.log_returns.append(log_ret)
+                    
+                    # Calculate rolling volatility after 10 points
+                    if len(self.log_returns) >= 10:
+                        recent_returns = list(self.log_returns)[-10:]
+                        vol = np.std(recent_returns)
+                        self.volatility.append(vol)
+                        
+                        # Calculate downside volatility
+                        negative_returns = [r for r in recent_returns if r < 0]
+                        dside_vol = np.std(negative_returns) if len(negative_returns) > 0 else 0
+                        self.downside_vol.append(dside_vol)
+            
+            print(f"[HMMHandler] ✅ Pre-loaded {len(self.prices)} prices, {len(self.log_returns)} returns")
+            
+        except Exception as e:
+            print(f"[HMMHandler] ⚠️ Error pre-loading historical data: {e}")
+            import traceback
+            traceback.print_exc()
     
     def get_signal(self, price: float) -> str:
         """
@@ -216,21 +279,83 @@ class PairsStrategyHandler(BaseStrategyHandler):
     - BUY when Z-score < -threshold (ratio is low, expect reversion up)
     - SELL when Z-score > +threshold (ratio is high, expect reversion down)
     - CLOSE when Z-score crosses zero (mean reversion complete)
+    
+    IMPORTANT: Pre-loads historical data to enable immediate trading decisions
     """
     
-    def __init__(self, window=60, threshold=2.0, **params):
+    def __init__(self, window=60, threshold=1.5, **params):
         super().__init__(**params)
         self.window = window
-        self.threshold = threshold  # Z-score threshold
+        self.threshold = threshold  # Z-score threshold (lower = more trades)
         
-        # Track the ETH/BTC ratio
-        self.ratio_history = deque(maxlen=window + 10)
+        # Track the ETH/BTC ratio - larger buffer for calculations
+        self.ratio_history = deque(maxlen=window * 2)
         
         # Track position state
         self.position = None  # None, 'LONG', 'SHORT'
         self.entry_ratio = None
+        self.last_signal_time = None
+        self.min_signal_interval = 300  # Minimum 5 minutes between signals
+        
+        # Pre-load historical data for immediate trading
+        self._preload_historical_data()
         
         print(f"[PairsHandler] Initialized with window={window}, threshold={threshold}")
+        print(f"[PairsHandler] Pre-loaded {len(self.ratio_history)} historical data points")
+    
+    def _preload_historical_data(self):
+        """Pre-load historical ETH/BTC ratio data for immediate signal generation"""
+        try:
+            import yfinance as yf
+            from datetime import datetime, timedelta
+            
+            # Fetch recent data (5-minute intervals for past 7 days)
+            tickers = "BTC-USD ETH-USD"
+            data = yf.download(tickers, period="7d", interval="5m", group_by='ticker', progress=False)
+            
+            if data.empty:
+                print("[PairsHandler] ⚠️ Could not pre-load historical data from Yahoo Finance")
+                return
+            
+            # Extract prices and calculate ratio
+            if isinstance(data.columns, pd.MultiIndex):
+                btc_prices = data['BTC-USD']['Close'].dropna()
+                eth_prices = data['ETH-USD']['Close'].dropna()
+            else:
+                print("[PairsHandler] ⚠️ Unexpected data structure")
+                return
+            
+            # Align indexes and calculate ratio
+            common_idx = btc_prices.index.intersection(eth_prices.index)
+            btc_prices = btc_prices.loc[common_idx]
+            eth_prices = eth_prices.loc[common_idx]
+            
+            # Take the last N data points we need
+            n_points = min(self.window + 20, len(btc_prices))
+            btc_prices = btc_prices.tail(n_points)
+            eth_prices = eth_prices.tail(n_points)
+            
+            # Calculate and store ratio history
+            for btc, eth in zip(btc_prices, eth_prices):
+                if btc > 0:
+                    ratio = eth / btc
+                    self.ratio_history.append(ratio)
+            
+            print(f"[PairsHandler] ✅ Pre-loaded {len(self.ratio_history)} ratio data points")
+            
+            # Calculate initial Z-score
+            if len(self.ratio_history) >= self.window:
+                ratio_array = np.array(list(self.ratio_history))
+                mean_ratio = np.mean(ratio_array[-self.window:])
+                std_ratio = np.std(ratio_array[-self.window:])
+                if std_ratio > 0:
+                    z_score = (ratio_array[-1] - mean_ratio) / std_ratio
+                    print(f"[PairsHandler] Initial Z-Score: {z_score:.3f}")
+            
+        except Exception as e:
+            print(f"[PairsHandler] ⚠️ Error pre-loading historical data: {e}")
+            import traceback
+            traceback.print_exc()
     
     def update_ratio(self, eth_price: float, btc_price: float):
         """

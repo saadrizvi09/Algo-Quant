@@ -53,19 +53,21 @@ class SimulatedTradingSession:
         self.position = None  # None, 'LONG', or 'SHORT'
         self.entry_price = None
         
-        # Initialize strategy handler
+        # Initialize strategy handler with symbol for pre-loading data
         try:
-            self.handler = create_strategy_handler(strategy, **strategy_params)
+            # Pass base_asset as symbol for HMM strategy to pre-load correct data
+            handler_params = {**strategy_params, 'symbol': self.base_asset}
+            self.handler = create_strategy_handler(strategy, **handler_params)
             print(f"[SimTrading] ✅ Strategy handler initialized: {strategy}")
         except Exception as e:
             print(f"[SimTrading] ❌ Failed to initialize strategy handler: {e}")
             raise
         
-        # Scheduler for 10-second intervals
+        # Scheduler for 30-second intervals (more suitable for production)
         self.scheduler = BackgroundScheduler()
         self.scheduler.add_job(
             func=self._trading_loop,
-            trigger=IntervalTrigger(seconds=10),
+            trigger=IntervalTrigger(seconds=30),  # 30 seconds instead of 10
             id=f"simulated_{session_id}",
             name=f"Simulated {strategy} - {symbol}",
             replace_existing=True
@@ -79,17 +81,24 @@ class SimulatedTradingSession:
         self.scheduler.start()
         print(f"[SimTrading] ✅ Session {self.session_id} started (10s intervals)")
     
-    def stop(self):
-        """Stop the trading session"""
+    def stop(self, close_positions: bool = False):
+        """Stop the trading session
+        
+        Args:
+            close_positions: If True, close any open positions. 
+                           If False (default), leave positions open.
+        """
         self.is_running = False
         self.scheduler.shutdown(wait=False)
         
-        # Close any open positions
-        if self.position:
+        # Only close positions if explicitly requested
+        if close_positions and self.position:
             self._close_position()
         
         print(f"[SimTrading] ⏹️  Session {self.session_id} stopped")
         print(f"  Total Trades: {self.trades_count} | Total P&L: {self.total_pnl:.2f} {self.quote_asset}")
+        if self.position:
+            print(f"  ⚠️  Position '{self.position}' left open (as requested)")
     
     def _trading_loop(self):
         """Main trading loop - executes every 10 seconds"""
@@ -367,10 +376,11 @@ def start_simulated_trading(user_email: str, strategy: str, symbol: str,
 
 
 def _cleanup_expired_session(session_id: str):
-    """Internal helper to clean up expired sessions"""
+    """Internal helper to clean up expired sessions (keeps positions open)"""
     if session_id in simulated_sessions:
         session = simulated_sessions[session_id]
-        session.stop()
+        # Don't close positions when session expires naturally
+        session.stop(close_positions=False)
         
         # Update database
         try:
@@ -389,11 +399,17 @@ def _cleanup_expired_session(session_id: str):
         
         # Remove from active sessions
         del simulated_sessions[session_id]
-        print(f"[SimTrading] Session {session_id} expired and cleaned up")
+        print(f"[SimTrading] Session {session_id} expired and cleaned up (positions kept open)")
 
 
-def stop_simulated_trading(session_id: str) -> dict:
-    """Stop a simulated trading session"""
+def stop_simulated_trading(session_id: str, close_positions: bool = False) -> dict:
+    """Stop a simulated trading session
+    
+    Args:
+        session_id: The session to stop
+        close_positions: If True, close any open positions before stopping.
+                        If False (default), leave positions open.
+    """
     print(f"[SimTrading] Stop request for session: {session_id}")
     print(f"[SimTrading] Active sessions: {list(simulated_sessions.keys())}")
     print(f"[SimTrading] Session in dict: {session_id in simulated_sessions}")
@@ -403,7 +419,7 @@ def stop_simulated_trading(session_id: str) -> dict:
         return {'error': 'Session not found'}
     
     session = simulated_sessions[session_id]
-    session.stop()
+    session.stop(close_positions=close_positions)
     
     # Update database
     try:
@@ -426,7 +442,8 @@ def stop_simulated_trading(session_id: str) -> dict:
         'session_id': session_id,
         'message': 'Session stopped',
         'total_pnl': session.total_pnl,
-        'trades_count': session.trades_count
+        'trades_count': session.trades_count,
+        'positions_closed': close_positions
     }
 
 
