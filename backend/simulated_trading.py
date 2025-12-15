@@ -147,9 +147,10 @@ class SimulatedTradingSession:
                 elapsed = (datetime.now() - self.start_time).total_seconds() / 60
                 z_score = self.handler.get_current_zscore()
                 ratio = eth_price / btc_price
+                z_display = f"{z_score:.2f}" if z_score is not None else "N/A"
                 print(f"[SimTrading] 🔄 Loop #{self.trades_count} | {elapsed:.1f}min elapsed")
                 print(f"  ETH: ${eth_price:.2f} | BTC: ${btc_price:.2f} | Ratio: {ratio:.6f}")
-                print(f"  Z-Score: {z_score:.2f if z_score else 'N/A'} | Signal: '{signal}' | Position: '{self.position or 'NONE'}'")
+                print(f"  Z-Score: {z_display} | Signal: '{signal}' | Position: '{self.position or 'NONE'}'")
             else:
                 # Standard single-asset trading (HMM, etc.)
                 price = simulated_exchange.get_current_price(self.base_asset, self.quote_asset)
