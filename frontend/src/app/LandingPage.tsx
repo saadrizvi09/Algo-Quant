@@ -462,8 +462,8 @@ function BentoGridFeatures() {
               <Lock size={24} className="text-purple-400" />
             </div>
             <div>
-              <h3 className="text-xl font-bold text-white mb-2">AES-256 Encryption</h3>
-              <p className="text-slate-400 text-sm">Your data is secured with military-grade AES-256 encryption and Argon2 hashing.</p>
+              <h3 className="text-xl font-bold text-white mb-2">Secure Authentication</h3>
+              <p className="text-slate-400 text-sm">Your data is secured with bcrypt password hashing and JWT authentication.</p>
             </div>
           </SpotlightCard>
 
