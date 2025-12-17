@@ -1,12 +1,67 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { ArrowLeft, Book, Code, Terminal, Cpu, TrendingUp, BarChart3, Activity, Zap, Shield, AlertCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 export default function DocsPage() {
   const router = useRouter();
   const [activeSection, setActiveSection] = useState("introduction");
+
+  // Track scroll position and update active section
+  useEffect(() => {
+    const handleScroll = () => {
+      const sections = [
+        "introduction",
+        "installation",
+        "quickstart",
+        "hmm-strategy",
+        "backtesting",
+        "risk-management",
+        "live-trading",
+        "api-endpoints",
+        "code-examples"
+      ];
+
+      // Find which section is currently in view
+      let currentSection = "introduction";
+      let minDistance = Infinity;
+      
+      for (const sectionId of sections) {
+        const element = document.getElementById(sectionId);
+        if (element) {
+          const rect = element.getBoundingClientRect();
+          // Calculate distance from top of viewport (with offset)
+          const distance = Math.abs(rect.top - 100);
+          
+          // If section is above the viewport center and closer than previous
+          if (rect.top <= 100 && distance < minDistance) {
+            minDistance = distance;
+            currentSection = sectionId;
+          }
+        }
+      }
+      
+      setActiveSection(currentSection);
+    };
+
+    // Add scroll listener with throttle for better performance
+    let timeoutId: NodeJS.Timeout;
+    const throttledScroll = () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      timeoutId = setTimeout(handleScroll, 50);
+    };
+
+    window.addEventListener("scroll", throttledScroll, { passive: true });
+    // Call once on mount to set initial state
+    handleScroll();
+
+    // Cleanup
+    return () => {
+      window.removeEventListener("scroll", throttledScroll);
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, []);
 
   const scrollToSection = (id: string) => {
     setActiveSection(id);
