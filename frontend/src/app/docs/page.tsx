@@ -126,26 +126,7 @@ export default function DocsPage() {
               AlgoQuant is a high-performance algorithmic trading platform designed for quantitative analysts and developers. 
               It leverages <strong>Hidden Markov Models (HMM)</strong> to detect market regimes and adjust trading strategies dynamically.
             </p>
-            <div className="grid md:grid-cols-2 gap-4">
-              <div className="p-6 bg-gradient-to-br from-cyan-500/5 to-blue-500/5 border border-cyan-500/10 rounded-2xl">
-                <h4 className="text-cyan-400 font-bold mb-2 flex items-center gap-2">
-                  <TrendingUp size={18} />
-                  12.76% Annual Return
-                </h4>
-                <p className="text-sm text-slate-400">
-                  Our HMM strategy achieved 12.76% annualized returns with a Sharpe ratio of 0.85 on BTC/USDT pairs.
-                </p>
-              </div>
-              <div className="p-6 bg-gradient-to-br from-purple-500/5 to-pink-500/5 border border-purple-500/10 rounded-2xl">
-                <h4 className="text-purple-400 font-bold mb-2 flex items-center gap-2">
-                  <Zap size={18} />
-                  Real-time Execution
-                </h4>
-                <p className="text-sm text-slate-400">
-                  Sub-millisecond latency backtesting engine processes decade-long tick data in seconds.
-                </p>
-              </div>
-            </div>
+            
           </section>
 
           {/* Section: Installation */}
