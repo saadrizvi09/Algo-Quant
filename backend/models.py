@@ -45,3 +45,5 @@ class PortfolioAsset(SQLModel, table=True):
     symbol: str = Field(primary_key=True)  # e.g., 'USDT', 'BTC', 'ETH'
     user_email: str = Field(primary_key=True, index=True)  # Support multi-user portfolios
     balance: float = Field(default=0.0)
+    avg_cost_basis: float = Field(default=0.0)  # Average buy price per unit
+    total_invested: float = Field(default=0.0)  # Total USDT invested in this asset

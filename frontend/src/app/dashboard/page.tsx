@@ -353,59 +353,6 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* Active Sessions */}
-        {activeSessions.length > 0 && (
-          <div className="bg-[#151B26] border border-white/5 rounded-2xl overflow-hidden">
-            <div className="p-6 border-b border-white/5">
-              <h3 className="font-semibold text-white flex items-center gap-2">
-                <Activity className="w-5 h-5 text-cyan-400" />
-                Trading Sessions
-              </h3>
-            </div>
-            <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {activeSessions.map((session) => (
-                <div
-                  key={session.session_id}
-                  className="p-4 bg-[#0B0E14] rounded-xl border border-white/5"
-                >
-                  <div className="flex justify-between items-start mb-3">
-                    <div>
-                      <div className="font-semibold text-white">{session.symbol}</div>
-                      <div className="text-xs text-slate-400 capitalize">
-                        {session.strategy} Strategy
-                      </div>
-                    </div>
-                    <div
-                      className={`px-2 py-1 rounded-full text-xs ${
-                        session.is_running
-                          ? "bg-emerald-500/20 text-emerald-400"
-                          : "bg-slate-500/20 text-slate-400"
-                      }`}
-                    >
-                      {session.is_running ? "Running" : "Stopped"}
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3 text-sm">
-                    <div>
-                      <div className="text-slate-500 text-xs">Trades</div>
-                      <div className="text-white">{session.trades_count}</div>
-                    </div>
-                    <div>
-                      <div className="text-slate-500 text-xs">P&L</div>
-                      <div
-                        className={
-                          session.pnl >= 0 ? "text-emerald-400" : "text-red-400"
-                        }
-                      >
-                        {session.pnl >= 0 ? "+" : ""}${session.pnl.toFixed(2)}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </main>
     </div>
   );

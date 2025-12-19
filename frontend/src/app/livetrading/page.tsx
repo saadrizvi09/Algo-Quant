@@ -20,6 +20,7 @@ import {
   DollarSign,
   Target,
   Timer,
+  Bot,
 } from "lucide-react";
 import Navbar from "@/components/navbar";
 
@@ -44,6 +45,8 @@ interface Trade {
   quantity: number;
   total: number;
   time: string;
+  pnl?: number;
+  pnl_percent?: number;
 }
 
 interface Session {
@@ -265,9 +268,12 @@ export default function LiveTradingPage() {
         {/* Header */}
         <div className="flex justify-between items-end border-b border-white/10 pb-6">
           <div>
-            <h1 className="text-4xl font-bold text-white">Live Trading</h1>
+            <h1 className="text-4xl font-bold text-white flex items-center gap-3">
+              <Bot className="w-10 h-10 text-cyan-400" />
+              Trading Bot
+            </h1>
             <p className="text-slate-400 mt-2">
-              Paper trading with $10,000 starting capital - Real strategies, simulated execution
+              Algorithmic trading powered by AI • Paper trading with $10,000 capital
             </p>
           </div>
           <div className="flex gap-2">
@@ -573,14 +579,14 @@ export default function LiveTradingPage() {
           <div className="bg-[#151B26] border border-white/5 rounded-2xl p-6 shadow-2xl">
             <h3 className="font-semibold text-white mb-6 flex items-center gap-2">
               <Activity className="w-5 h-5 text-cyan-400" />
-              Active Trading Sessions
+              Active Bot Sessions
             </h3>
 
             {activeSessions.length === 0 ? (
               <div className="text-center py-12 text-slate-400">
-                <Activity className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                <p>No active trading sessions</p>
-                <p className="text-sm text-slate-500 mt-1">Start a new session to begin trading</p>
+                <Bot className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                <p>No active bot sessions</p>
+                <p className="text-sm text-slate-500 mt-1">Configure and start a bot above</p>
               </div>
             ) : (
               <div className="space-y-4">
@@ -651,20 +657,20 @@ export default function LiveTradingPage() {
           </div>
         </div>
 
-        {/* Recent Trades */}
+        {/* Bot Trades */}
         <div className="bg-[#151B26] border border-white/5 rounded-2xl overflow-hidden">
           <div className="p-6 border-b border-white/5">
             <h3 className="font-semibold text-white flex items-center gap-2">
-              <Clock className="w-5 h-5 text-cyan-400" />
-              Recent Trades
+              <Bot className="w-5 h-5 text-cyan-400" />
+              Bot Trades
             </h3>
           </div>
           
           {recentTrades.length === 0 ? (
             <div className="text-center py-12 text-slate-400">
-              <Clock className="w-12 h-12 mx-auto mb-4 opacity-50" />
-              <p>No recent trades</p>
-              <p className="text-sm text-slate-500 mt-1">Trades will appear here once executed</p>
+              <Bot className="w-12 h-12 mx-auto mb-4 opacity-50" />
+              <p>No bot trades yet</p>
+              <p className="text-sm text-slate-500 mt-1">Trades will appear here once the bot executes them</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -677,6 +683,7 @@ export default function LiveTradingPage() {
                     <th className="px-6 py-4 text-right text-xs font-semibold text-slate-400 uppercase">Price</th>
                     <th className="px-6 py-4 text-right text-xs font-semibold text-slate-400 uppercase">Quantity</th>
                     <th className="px-6 py-4 text-right text-xs font-semibold text-slate-400 uppercase">Total</th>
+                    <th className="px-6 py-4 text-right text-xs font-semibold text-slate-400 uppercase">P&L</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
@@ -695,6 +702,24 @@ export default function LiveTradingPage() {
                       <td className="px-6 py-4 text-right text-slate-300">${trade.price.toFixed(2)}</td>
                       <td className="px-6 py-4 text-right text-slate-300">{trade.quantity.toFixed(6)}</td>
                       <td className="px-6 py-4 text-right font-semibold text-white">${trade.total.toFixed(2)}</td>
+                      <td className="px-6 py-4 text-right">
+                        {trade.side === "SELL" && trade.pnl !== undefined ? (
+                          <div className="flex flex-col items-end">
+                            <span className={trade.pnl >= 0 ? "text-emerald-400 font-semibold" : "text-red-400 font-semibold"}>
+                              {trade.pnl >= 0 ? "+" : ""}${trade.pnl.toFixed(2)}
+                            </span>
+                            {trade.pnl_percent !== undefined && (
+                              <span className={`text-xs ${trade.pnl_percent >= 0 ? "text-emerald-400/70" : "text-red-400/70"}`}>
+                                ({trade.pnl_percent >= 0 ? "+" : ""}{trade.pnl_percent.toFixed(2)}%)
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-xs px-2 py-1 rounded bg-slate-500/20 text-slate-400">
+                            {trade.side === "BUY" ? "OPEN" : "—"}
+                          </span>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

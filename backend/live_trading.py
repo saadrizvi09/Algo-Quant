@@ -160,24 +160,40 @@ def get_portfolio_value():
 
 
 def get_recent_trades_from_db(user_email: str, limit: int = 20) -> List[dict]:
-    """Get recent trades from database"""
+    """Get recent trades from database - only bot trades (excludes manual trades)"""
     try:
         with Session(engine) as session:
+            # Filter out manual trades by excluding session_ids starting with "manual_"
             statement = select(Trade).where(
-                Trade.user_email == user_email
+                Trade.user_email == user_email,
+                ~Trade.session_id.startswith("manual_")
             ).order_by(Trade.executed_at.desc()).limit(limit)
             trades = session.exec(statement).all()
             
-            return [{
-                'symbol': t.symbol,
-                'side': t.side,
-                'price': t.price,
-                'quantity': t.quantity,
-                'total': t.total,
-                'pnl': t.pnl,
-                'time': t.executed_at.isoformat()
-            } for t in trades]
+            result = []
+            for t in trades:
+                trade_dict = {
+                    'symbol': t.symbol,
+                    'side': t.side,
+                    'price': t.price,
+                    'quantity': t.quantity,
+                    'total': t.total,
+                    'pnl': t.pnl,
+                    'time': t.executed_at.isoformat()
+                }
+                
+                # Calculate pnl_percent for SELL trades
+                if t.side == "SELL" and t.pnl is not None and t.total > 0:
+                    # PnL percent = (pnl / cost_basis) * 100
+                    cost_basis = t.total - t.pnl
+                    if cost_basis > 0:
+                        trade_dict['pnl_percent'] = (t.pnl / cost_basis) * 100
+                
+                result.append(trade_dict)
+            
+            return result
     except Exception as e:
+        print(f"Error getting bot trades: {e}")
         return []
 
 

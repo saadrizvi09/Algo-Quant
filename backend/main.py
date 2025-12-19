@@ -429,3 +429,201 @@ def get_simulated_session(session_id: str, current_user: str = Depends(get_curre
     if "error" in status:
         raise HTTPException(status_code=404, detail=status["error"])
     return status
+
+
+# --- MANUAL TRADING ROUTES (Market Page) ---
+
+class ManualBuyRequest(BaseModel):
+    symbol: str  # e.g., 'BTC', 'ETH'
+    usdt_amount: float  # Amount in USDT to spend
+
+class ManualSellRequest(BaseModel):
+    symbol: str  # e.g., 'BTC', 'ETH'
+    quantity: float  # Amount of asset to sell
+
+class ManualSellPercentRequest(BaseModel):
+    symbol: str  # e.g., 'BTC', 'ETH'
+    percentage: float  # Percentage of holdings to sell (0-100)
+
+
+@app.post("/api/market/buy")
+def manual_buy(req: ManualBuyRequest, current_user: str = Depends(get_current_user)):
+    """
+    Execute a manual buy order from the Market page.
+    This is independent from automated trading bot strategies.
+    Updates portfolio and creates trade log entry.
+    """
+    from manual_trading import execute_manual_buy
+    from database import initialize_portfolio_if_empty
+    
+    # Ensure user has portfolio initialized
+    initialize_portfolio_if_empty(user_email=current_user)
+    
+    # Validate input
+    if req.usdt_amount <= 0:
+        raise HTTPException(status_code=400, detail="Amount must be positive")
+    
+    if req.usdt_amount < 1:
+        raise HTTPException(status_code=400, detail="Minimum buy amount is 1 USDT")
+    
+    success, trade_info, error = execute_manual_buy(
+        symbol=req.symbol,
+        usdt_amount=req.usdt_amount,
+        user_email=current_user
+    )
+    
+    if not success:
+        raise HTTPException(status_code=400, detail=error)
+    
+    return {
+        "success": True,
+        "message": f"Successfully bought {trade_info['quantity']:.8f} {req.symbol}",
+        "trade": trade_info
+    }
+
+
+@app.post("/api/market/sell")
+def manual_sell(req: ManualSellRequest, current_user: str = Depends(get_current_user)):
+    """
+    Execute a manual sell order from the Market page.
+    This is independent from automated trading bot strategies.
+    Updates portfolio and creates trade log entry.
+    """
+    from manual_trading import execute_manual_sell
+    from database import initialize_portfolio_if_empty
+    
+    # Ensure user has portfolio initialized
+    initialize_portfolio_if_empty(user_email=current_user)
+    
+    # Validate input
+    if req.quantity <= 0:
+        raise HTTPException(status_code=400, detail="Quantity must be positive")
+    
+    success, trade_info, error = execute_manual_sell(
+        symbol=req.symbol,
+        quantity=req.quantity,
+        user_email=current_user
+    )
+    
+    if not success:
+        raise HTTPException(status_code=400, detail=error)
+    
+    return {
+        "success": True,
+        "message": f"Successfully sold {trade_info['quantity']:.8f} {req.symbol}",
+        "trade": trade_info
+    }
+
+
+@app.post("/api/market/sell-percent")
+def manual_sell_percent(req: ManualSellPercentRequest, current_user: str = Depends(get_current_user)):
+    """
+    Sell a percentage of holdings for a specific asset.
+    Useful for quick "Sell 25%", "Sell 50%", "Sell All" actions.
+    """
+    from manual_trading import execute_manual_sell, get_user_balance
+    from database import initialize_portfolio_if_empty
+    
+    # Ensure user has portfolio initialized
+    initialize_portfolio_if_empty(user_email=current_user)
+    
+    # Validate percentage
+    if req.percentage <= 0 or req.percentage > 100:
+        raise HTTPException(status_code=400, detail="Percentage must be between 0 and 100")
+    
+    # Get current balance
+    balance = get_user_balance(req.symbol.upper(), current_user)
+    if balance <= 0:
+        raise HTTPException(status_code=400, detail=f"No {req.symbol} holdings to sell")
+    
+    # Calculate quantity to sell
+    quantity_to_sell = balance * (req.percentage / 100)
+    
+    success, trade_info, error = execute_manual_sell(
+        symbol=req.symbol,
+        quantity=quantity_to_sell,
+        user_email=current_user
+    )
+    
+    if not success:
+        raise HTTPException(status_code=400, detail=error)
+    
+    return {
+        "success": True,
+        "message": f"Successfully sold {req.percentage}% ({trade_info['quantity']:.8f}) {req.symbol}",
+        "trade": trade_info
+    }
+
+
+@app.get("/api/market/trades")
+def get_manual_trades(limit: int = 50, current_user: str = Depends(get_current_user)):
+    """Get manual trade history for the current user"""
+    from manual_trading import get_manual_trade_history
+    
+    trades = get_manual_trade_history(current_user, limit)
+    return {"trades": trades}
+
+
+@app.get("/api/market/prices")
+def get_market_prices(current_user: str = Depends(get_current_user)):
+    """
+    Get current prices for all supported assets.
+    Useful for initial page load before WebSocket connects.
+    """
+    from manual_trading import get_prices_for_assets
+    
+    prices = get_prices_for_assets()
+    return {"prices": prices}
+
+
+@app.get("/api/market/assets")
+def get_supported_assets(current_user: str = Depends(get_current_user)):
+    """Get list of supported assets for manual trading"""
+    from manual_trading import SUPPORTED_ASSETS
+    
+    assets = [
+        {"symbol": "BTC", "name": "Bitcoin", "logo": "₿", "color": "#F7931A"},
+        {"symbol": "ETH", "name": "Ethereum", "logo": "Ξ", "color": "#627EEA"},
+        {"symbol": "SOL", "name": "Solana", "logo": "◎", "color": "#14F195"},
+        {"symbol": "LINK", "name": "Chainlink", "logo": "⬡", "color": "#2A5ADA"},
+        {"symbol": "DOGE", "name": "Dogecoin", "logo": "Ð", "color": "#C2A633"},
+        {"symbol": "BNB", "name": "BNB", "logo": "⬡", "color": "#F3BA2F"},
+    ]
+    
+    return {"assets": [a for a in assets if a["symbol"] in SUPPORTED_ASSETS]}
+
+
+@app.get("/api/market/cost-basis/{symbol}")
+def get_cost_basis(symbol: str, current_user: str = Depends(get_current_user)):
+    """
+    Get the average cost basis and investment info for a specific asset.
+    Used to show estimated PnL before selling.
+    """
+    from manual_trading import get_asset_cost_basis, get_current_price_from_binance, TRADING_FEE
+    
+    cost_info = get_asset_cost_basis(symbol.upper(), current_user)
+    
+    # Get current price to calculate unrealized PnL
+    current_price = get_current_price_from_binance(symbol.upper(), "USDT")
+    
+    if current_price and cost_info['balance'] > 0:
+        current_value = current_price * cost_info['balance']
+        fee_estimate = current_value * TRADING_FEE
+        net_value = current_value - fee_estimate
+        unrealized_pnl = net_value - cost_info['total_invested']
+        unrealized_pnl_percent = ((net_value / cost_info['total_invested']) - 1) * 100 if cost_info['total_invested'] > 0 else 0.0
+    else:
+        current_value = 0.0
+        unrealized_pnl = 0.0
+        unrealized_pnl_percent = 0.0
+    
+    return {
+        "symbol": symbol.upper(),
+        "balance": cost_info['balance'],
+        "avg_cost_basis": cost_info['avg_cost_basis'],
+        "total_invested": cost_info['total_invested'],
+        "current_price": current_price,
+        "current_value": current_value,
+        "unrealized_pnl": unrealized_pnl,
+        "unrealized_pnl_percent": unrealized_pnl_percent
+    }

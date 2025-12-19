@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Activity, LayoutDashboard, LogOut, Zap, Radio, Menu, X } from "lucide-react";
+import { Activity, LayoutDashboard, LogOut, Zap, Bot, Menu, X, TrendingUp } from "lucide-react";
 import { useState } from "react";
 
 export default function Navbar() {
@@ -20,8 +20,9 @@ export default function Navbar() {
 
   const navLinks = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { href: "/market", label: "Market", icon: TrendingUp },
     { href: "/backtest", label: "Backtest", icon: Activity },
-    { href: "/livetrading", label: "Live Trading", icon: Radio },
+    { href: "/livetrading", label: "Trading Bot", icon: Bot },
   ];
 
   return (
