@@ -89,6 +89,7 @@ export default function MarketPage() {
 
   // Portfolio & Trades
   const [portfolio, setPortfolio] = useState<{ total_value_usdt: number; holdings: Holding[] } | null>(null);
+  const [portfolioLoading, setPortfolioLoading] = useState(true);
   const [recentTrades, setRecentTrades] = useState<Trade[]>([]);
 
   // UI States
@@ -128,7 +129,8 @@ export default function MarketPage() {
 
   // ==================== DATA FETCHING ====================
 
-  const fetchPortfolio = useCallback(async () => {
+  const fetchPortfolio = useCallback(async (isInitialLoad = false) => {
+    if (isInitialLoad) setPortfolioLoading(true);
     try {
       const res = await fetch(`${API_URL}/api/simulated/portfolio`, {
         headers: getAuthHeaders(),
@@ -149,6 +151,8 @@ export default function MarketPage() {
       }
     } catch (err) {
       console.error("Failed to fetch portfolio", err);
+    } finally {
+      if (isInitialLoad) setPortfolioLoading(false);
     }
   }, [getAuthHeaders, router]);
 
@@ -168,7 +172,7 @@ export default function MarketPage() {
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([fetchPortfolio(), fetchTrades()]);
+    await Promise.all([fetchPortfolio(false), fetchTrades()]);
     setRefreshing(false);
   };
 
@@ -417,9 +421,8 @@ export default function MarketPage() {
       return;
     }
 
-    // Initial data fetch
-    fetchPortfolio();
-    fetchTrades();
+    // Initial data fetch (parallel for faster loading)
+    Promise.all([fetchPortfolio(true), fetchTrades()]);
 
     // Connect WebSocket
     connectWebSocket();
@@ -455,8 +458,36 @@ export default function MarketPage() {
     return holding?.quantity || 0;
   }, [portfolio]);
 
+  // Calculate real-time portfolio value using live WebSocket prices
+  const livePortfolioValue = useMemo(() => {
+    if (!portfolio) return null;
+
+    let totalValue = 0;
+    const updatedHoldings = portfolio.holdings.map(holding => {
+      if (holding.asset === "USDT") {
+        totalValue += holding.quantity;
+        return holding;
+      }
+
+      // Use live price if available, otherwise use stored value
+      const livePrice = prices[holding.asset]?.price;
+      const value = livePrice ? holding.quantity * livePrice : holding.value_usdt;
+      totalValue += value;
+
+      return {
+        ...holding,
+        value_usdt: value,
+      };
+    });
+
+    return {
+      total_value_usdt: totalValue,
+      holdings: updatedHoldings,
+    };
+  }, [portfolio, prices]);
+
   const getHoldingForAsset = (symbol: string) => {
-    return portfolio?.holdings.find((h) => h.asset === symbol);
+    return livePortfolioValue?.holdings.find((h) => h.asset === symbol) || portfolio?.holdings.find((h) => h.asset === symbol);
   };
 
   // ==================== RENDER ====================
@@ -529,7 +560,11 @@ export default function MarketPage() {
               <Wallet className="w-5 h-5 text-cyan-400" />
               <span className="text-slate-400 text-sm">Available USDT</span>
             </div>
-            <div className="text-2xl font-bold text-white">${usdtBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+            {portfolioLoading ? (
+              <div className="h-8 w-32 bg-white/10 animate-pulse rounded" />
+            ) : (
+              <div className="text-2xl font-bold text-white">${usdtBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+            )}
           </div>
 
           <div className="bg-[#151B26] border border-white/5 rounded-2xl p-6">
@@ -537,9 +572,13 @@ export default function MarketPage() {
               <DollarSign className="w-5 h-5 text-green-400" />
               <span className="text-slate-400 text-sm">Portfolio Value</span>
             </div>
-            <div className="text-2xl font-bold text-white">
-              ${portfolio?.total_value_usdt?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || "0.00"}
-            </div>
+            {portfolioLoading ? (
+              <div className="h-8 w-32 bg-white/10 animate-pulse rounded" />
+            ) : (
+              <div className="text-2xl font-bold text-white">
+                ${((livePortfolioValue?.total_value_usdt || portfolio?.total_value_usdt || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }))}
+              </div>
+            )}
           </div>
 
           <div className="bg-[#151B26] border border-white/5 rounded-2xl p-6">
@@ -547,9 +586,13 @@ export default function MarketPage() {
               <Zap className="w-5 h-5 text-yellow-400" />
               <span className="text-slate-400 text-sm">Active Assets</span>
             </div>
-            <div className="text-2xl font-bold text-white">
-              {portfolio?.holdings.filter((h) => h.asset !== "USDT" && h.quantity > 0.00000001).length || 0}
-            </div>
+            {portfolioLoading ? (
+              <div className="h-8 w-16 bg-white/10 animate-pulse rounded" />
+            ) : (
+              <div className="text-2xl font-bold text-white">
+                {portfolio?.holdings.filter((h) => h.asset !== "USDT" && h.quantity > 0.00000001).length || 0}
+              </div>
+            )}
           </div>
         </div>
 

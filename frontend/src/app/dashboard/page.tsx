@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/navbar";
 import { API_URL } from "@/lib/config";
@@ -11,7 +11,6 @@ import {
   TrendingUp,
   TrendingDown,
   Activity,
-  RefreshCw,
   Clock,
   BarChart3,
   Zap,
@@ -21,6 +20,11 @@ interface Holding {
   asset: string;
   quantity: number;
   value_usdt: number;
+}
+
+interface PriceData {
+  symbol: string;
+  price: number;
 }
 
 interface Trade {
@@ -44,7 +48,12 @@ interface Session {
 export default function DashboardPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const [portfolioLoading, setPortfolioLoading] = useState(true);
+
+  // WebSocket for live prices
+  const wsRef = useRef<WebSocket | null>(null);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [prices, setPrices] = useState<Record<string, PriceData>>({});
 
   const [portfolio, setPortfolio] = useState<{
     total_value_usdt: number;
@@ -61,7 +70,8 @@ export default function DashboardPage() {
     };
   }, []);
 
-  const fetchPortfolio = useCallback(async () => {
+  const fetchPortfolio = useCallback(async (isInitialLoad = false) => {
+    if (isInitialLoad) setPortfolioLoading(true);
     try {
       const res = await fetch(`${API_URL}/api/simulated/portfolio`, {
         headers: getAuthHeaders(),
@@ -81,6 +91,8 @@ export default function DashboardPage() {
       }
     } catch (err) {
       console.error("Failed to fetch portfolio", err);
+    } finally {
+      if (isInitialLoad) setPortfolioLoading(false);
     }
   }, [getAuthHeaders]);
 
@@ -112,11 +124,97 @@ export default function DashboardPage() {
     }
   }, [getAuthHeaders]);
 
-  const refreshAll = useCallback(async () => {
-    setRefreshing(true);
-    await Promise.all([fetchPortfolio(), fetchRecentTrades(), fetchSessions()]);
-    setRefreshing(false);
-  }, [fetchPortfolio, fetchRecentTrades, fetchSessions]);
+  // Connect to Binance WebSocket for live prices
+  const connectWebSocket = useCallback(() => {
+    if (wsRef.current?.readyState === WebSocket.OPEN || wsRef.current?.readyState === WebSocket.CONNECTING) {
+      return;
+    }
+
+    // Get unique crypto assets from holdings (exclude USDT)
+    const cryptoAssets = portfolio?.holdings
+      .filter(h => h.asset !== 'USDT' && h.quantity > 0.00000001)
+      .map(h => h.asset.toLowerCase()) || [];
+    
+    if (cryptoAssets.length === 0) {
+      // If no crypto holdings, connect to common pairs for price display
+      cryptoAssets.push('btc', 'eth', 'sol', 'bnb');
+    }
+
+    const streams = cryptoAssets.map(asset => `${asset}usdt@ticker`).join('/');
+    const wsUrl = `wss://stream.binance.com:9443/ws/${streams}`;
+
+    const ws = new WebSocket(wsUrl);
+    wsRef.current = ws;
+
+    ws.onopen = () => {
+      console.log('[Dashboard WebSocket] Connected');
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.s && data.c) {
+          const symbol = data.s.replace('USDT', '');
+          const newPrice = parseFloat(data.c);
+
+          setPrices((prev) => ({
+            ...prev,
+            [symbol]: {
+              symbol,
+              price: newPrice,
+            },
+          }));
+        }
+      } catch (err) {
+        console.error('[Dashboard WebSocket] Parse error:', err);
+      }
+    };
+
+    ws.onerror = () => {
+      console.warn('[Dashboard WebSocket] Connection error');
+    };
+
+    ws.onclose = () => {
+      console.log('[Dashboard WebSocket] Disconnected');
+      wsRef.current = null;
+
+      // Auto-reconnect after 5 seconds
+      if (!reconnectTimeoutRef.current) {
+        reconnectTimeoutRef.current = setTimeout(() => {
+          reconnectTimeoutRef.current = null;
+          connectWebSocket();
+        }, 5000);
+      }
+    };
+  }, [portfolio]);
+
+  // Calculate real-time portfolio value using live prices
+  const livePortfolioValue = useMemo(() => {
+    if (!portfolio) return null;
+
+    let totalValue = 0;
+    const updatedHoldings = portfolio.holdings.map(holding => {
+      if (holding.asset === 'USDT') {
+        totalValue += holding.quantity;
+        return holding;
+      }
+
+      // Use live price if available, otherwise use stored value
+      const livePrice = prices[holding.asset]?.price;
+      const value = livePrice ? holding.quantity * livePrice : holding.value_usdt;
+      totalValue += value;
+
+      return {
+        ...holding,
+        value_usdt: value,
+      };
+    });
+
+    return {
+      total_value_usdt: totalValue,
+      holdings: updatedHoldings,
+    };
+  }, [portfolio, prices]);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -127,17 +225,45 @@ export default function DashboardPage() {
 
     setLoading(false);
     
-    // Add small delay to ensure backend is ready after login
-    const initializeData = async () => {
-      await new Promise(resolve => setTimeout(resolve, 200));
-      refreshAll();
+    // Initial data fetch (parallel for faster loading)
+    const fetchInitialData = async () => {
+      await Promise.all([fetchPortfolio(true), fetchRecentTrades(), fetchSessions()]);
     };
+    
+    fetchInitialData();
 
-    initializeData();
+    // Set up auto-refresh interval (silent updates, no loading state)
+    const interval = setInterval(() => {
+      Promise.all([fetchPortfolio(false), fetchRecentTrades(), fetchSessions()]);
+    }, 30000);
+    
+    // Cleanup on unmount
+    return () => {
+      clearInterval(interval);
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router]);
 
-    const interval = setInterval(refreshAll, 30000);
-    return () => clearInterval(interval);
-  }, [router, refreshAll]);
+  // Reconnect WebSocket when portfolio changes to get prices for new holdings
+  useEffect(() => {
+    if (portfolio && portfolio.holdings.length > 0) {
+      // Close existing connection
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+      // Reconnect with updated symbols
+      connectWebSocket();
+    }
+  }, [portfolio, connectWebSocket]);
 
   const totalPnL = activeSessions.reduce((sum, s) => sum + s.pnl, 0);
   const runningCount = activeSessions.filter((s) => s.is_running).length;
@@ -162,14 +288,6 @@ export default function DashboardPage() {
             <p className="text-slate-400 mt-1 text-sm sm:text-base">Real-time portfolio overview</p>
           </div>
           <div className="flex gap-2 sm:gap-3">
-            <button
-              onClick={refreshAll}
-              disabled={refreshing}
-              className="px-3 sm:px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-slate-300 hover:bg-white/10 transition flex items-center gap-2 text-sm"
-            >
-              <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
-              <span className="hidden sm:inline">Refresh</span>
-            </button>
             <div className="px-3 py-2 bg-cyan-500/10 border border-cyan-500/20 rounded-lg text-cyan-400 text-xs sm:text-sm flex items-center gap-2">
               <Wallet size={14} />
               <span className="hidden sm:inline">Simulated Mode</span>
@@ -188,9 +306,13 @@ export default function DashboardPage() {
               </div>
             </div>
             <h3 className="text-slate-400 text-sm font-medium">Portfolio Value</h3>
-            <p className="text-2xl font-bold text-white mt-1">
-              ${portfolio?.total_value_usdt?.toFixed(2) || "0.00"}
-            </p>
+            {portfolioLoading ? (
+              <div className="h-8 w-32 bg-white/10 animate-pulse rounded mt-1" />
+            ) : (
+              <p className="text-2xl font-bold text-white mt-1">
+                ${(livePortfolioValue?.total_value_usdt || portfolio?.total_value_usdt || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </p>
+            )}
           </div>
 
           {/* Holdings */}
@@ -201,9 +323,13 @@ export default function DashboardPage() {
               </div>
             </div>
             <h3 className="text-slate-400 text-sm font-medium">Assets Held</h3>
-            <p className="text-2xl font-bold text-white mt-1">
-              {portfolio?.holdings?.length || 0}
-            </p>
+            {portfolioLoading ? (
+              <div className="h-8 w-16 bg-white/10 animate-pulse rounded mt-1" />
+            ) : (
+              <p className="text-2xl font-bold text-white mt-1">
+                {portfolio?.holdings?.length || 0}
+              </p>
+            )}
           </div>
 
           {/* Active Sessions */}
@@ -265,7 +391,7 @@ export default function DashboardPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
-                  {portfolio.holdings.map((holding) => (
+                  {(livePortfolioValue?.holdings || portfolio.holdings).map((holding) => (
                     <tr key={holding.asset} className="hover:bg-white/5 transition">
                       <td className="px-6 py-4 font-medium text-white">{holding.asset}</td>
                       <td className="px-6 py-4 text-right text-slate-300">
@@ -275,7 +401,7 @@ export default function DashboardPage() {
                         ${holding.value_usdt.toFixed(2)}
                       </td>
                       <td className="px-6 py-4 text-right text-slate-400">
-                        {((holding.value_usdt / (portfolio?.total_value_usdt || 1)) * 100).toFixed(1)}%
+                        {(((holding.value_usdt / ((livePortfolioValue?.total_value_usdt || portfolio?.total_value_usdt) || 1)) * 100).toFixed(1))}%
                       </td>
                     </tr>
                   ))}
