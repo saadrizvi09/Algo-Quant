@@ -80,7 +80,7 @@ def get_account_balance():
 
 
 def get_portfolio_value():
-    """Get total portfolio value in USDT (with caching)"""
+    """Get total portfolio value in USDT (with caching and SAFE batch price fetch)"""
     global _portfolio_cache
     
     # Check cache first
@@ -92,12 +92,35 @@ def get_portfolio_value():
     try:
         client = get_testnet_client()
         account = client.get_account()
-        total_usdt = 0.0
-        holdings = []
         
         # Assets that are stablecoins or don't have USDT pairs on testnet
         skip_assets = {'USDT', 'BUSD', 'USDC', 'DAI', 'TUSD', 'PAX', 'TRY', 'ZAR', 'UAH', 'BRL', 'EUR', 'GBP', 'AUD', 'NGN', 'RUB', 'UAH', 'BIDR', 'IDRT', 'VAI'}
         
+        # First pass: identify symbols to fetch (ONLY what user actually holds)
+        symbols_to_fetch = []
+        for balance in account['balances']:
+            free = float(balance.get('free', 0))
+            locked = float(balance.get('locked', 0))
+            total = free + locked
+            if total > 0.001:
+                asset = balance.get('asset', 'UNKNOWN')
+                if asset not in skip_assets and asset != 'USDT':
+                    symbols_to_fetch.append(f"{asset}USDT")
+        
+        # Batch fetch ONLY needed prices (API weight: 2 per symbol - very safe!)
+        price_map = {}
+        for symbol in symbols_to_fetch:
+            try:
+                ticker = client.get_symbol_ticker(symbol=symbol)
+                price_map[symbol] = float(ticker['price'])
+            except Exception as e:
+                # Silently skip invalid symbols
+                pass
+        
+        total_usdt = 0.0
+        holdings = []
+        
+        # Second pass: calculate values using pre-fetched prices
         for balance in account['balances']:
             try:
                 free = float(balance.get('free', 0))
@@ -117,11 +140,12 @@ def get_portfolio_value():
                             })
                             total_usdt += value_usdt
                     elif asset not in skip_assets:
-                        try:
-                            ticker = client.get_symbol_ticker(symbol=f"{asset}USDT")
-                            price = float(ticker['price'])
+                        # Use pre-fetched price from batch call
+                        trading_pair = f"{asset}USDT"
+                        price = price_map.get(trading_pair, 0.0)
+                        
+                        if price > 0:
                             value_usdt = total * price
-                            
                             if value_usdt > 0.01:
                                 holdings.append({
                                     'asset': asset,
@@ -129,11 +153,6 @@ def get_portfolio_value():
                                     'value_usdt': value_usdt
                                 })
                                 total_usdt += value_usdt
-                        except Exception as price_error:
-                            # Only log if it's not a known invalid symbol
-                            error_str = str(price_error)
-                            if 'Invalid symbol' not in error_str:
-                                print(f"[Portfolio] Cannot get price for {asset}USDT: {price_error}")
             except Exception as balance_error:
                 print(f"[Portfolio] Error processing balance: {balance_error}")
                 continue

@@ -305,7 +305,7 @@ def execute_sell(
 
 def get_portfolio_summary(user_email: str = "default_user") -> dict:
     """
-    Get complete portfolio summary with current values
+    Get complete portfolio summary with current values (OPTIMIZED - only fetch needed symbols)
     
     Args:
         user_email: User identifier
@@ -317,6 +317,25 @@ def get_portfolio_summary(user_email: str = "default_user") -> dict:
         statement = select(PortfolioAsset).where(PortfolioAsset.user_email == user_email)
         assets = session.exec(statement).all()
         
+        # Build list of symbols to fetch (ONLY what user holds - very light API usage)
+        symbols_to_fetch = [f"{asset.symbol}USDT" for asset in assets 
+                           if asset.balance > 0.00000001 and asset.symbol != "USDT"]
+        
+        # Batch fetch ONLY needed prices (API weight: 2 per symbol, much safer!)
+        price_map = {}
+        if symbols_to_fetch:
+            try:
+                client = get_binance_client()
+                # Use bookTicker for minimal weight (weight=1 per symbol vs weight=40 for all)
+                for symbol in symbols_to_fetch:
+                    try:
+                        ticker = client.get_symbol_ticker(symbol=symbol)
+                        price_map[symbol] = float(ticker['price'])
+                    except Exception as e:
+                        print(f"[SimEx] Price fetch failed for {symbol}: {e}")
+            except Exception as e:
+                print(f"[SimEx] Failed to fetch prices: {e}")
+        
         portfolio = []
         total_value_usdt = 0.0
         
@@ -325,7 +344,9 @@ def get_portfolio_summary(user_email: str = "default_user") -> dict:
                 if asset.symbol == "USDT":
                     value_usdt = asset.balance
                 else:
-                    price = get_current_price(asset.symbol, "USDT")
+                    # Use pre-fetched price from batch call
+                    trading_pair = f"{asset.symbol}USDT"
+                    price = price_map.get(trading_pair, 0.0)
                     value_usdt = asset.balance * price if price else 0.0
                 
                 portfolio.append({
