@@ -15,22 +15,11 @@ import {
   RefreshCw,
   AlertCircle,
   CheckCircle,
-  Zap,
-  BarChart3,
   DollarSign,
-  Target,
   Timer,
   Bot,
 } from "lucide-react";
 import Navbar from "@/components/navbar";
-
-interface Strategy {
-  id: string;
-  name: string;
-  description: string;
-  risk_level: string;
-  requires_symbol?: boolean;
-}
 
 interface Holding {
   asset: string;
@@ -69,13 +58,6 @@ const CRYPTO_PAIRS = [
   { symbol: "SOLUSDT", name: "Solana", logo: "◎", color: "#14F195" },
 ];
 
-const RISK_COLORS: Record<string, string> = {
-  "Low": "text-green-400",
-  "Medium": "text-yellow-400",
-  "Medium-High": "text-orange-400",
-  "High": "text-red-400",
-};
-
 export default function LiveTradingPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -83,20 +65,17 @@ export default function LiveTradingPage() {
   const [success, setSuccess] = useState<string | null>(null);
 
   // Data states
-  const [strategies, setStrategies] = useState<Strategy[]>([]);
   const [portfolio, setPortfolio] = useState<{ total_value_usdt: number; holdings: Holding[] } | null>(null);
   const [recentTrades, setRecentTrades] = useState<Trade[]>([]);
   const [activeSessions, setActiveSessions] = useState<Session[]>([]);
 
   // Form states
-  const [selectedStrategy, setSelectedStrategy] = useState<string>("");
   const [selectedSymbol, setSelectedSymbol] = useState<string>("BTCUSDT");
   const [tradeAmount, setTradeAmount] = useState<number>(100);
-  const [duration, setDuration] = useState<number>(60);
-  const [durationUnit, setDurationUnit] = useState<string>("minutes");
+  const [duration, setDuration] = useState<number>(7);
+  const [durationUnit, setDurationUnit] = useState<string>("days");
 
   // UI states
-  const [showStrategyDropdown, setShowStrategyDropdown] = useState(false);
   const [showSymbolDropdown, setShowSymbolDropdown] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -108,23 +87,6 @@ export default function LiveTradingPage() {
     };
   }, []);
 
-  const fetchStrategies = useCallback(async () => {
-    try {
-      const res = await fetch(`${API_URL}/api/live/strategies`, {
-        headers: getAuthHeaders(),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setStrategies(data.strategies);
-        if (data.strategies.length > 0 && !selectedStrategy) {
-          setSelectedStrategy(data.strategies[0].id);
-        }
-      }
-    } catch (err) {
-      console.error("Failed to fetch strategies", err);
-    }
-  }, [getAuthHeaders, selectedStrategy]);
-
   const fetchPortfolio = useCallback(async () => {
     try {
       const res = await fetch(`${API_URL}/api/simulated/portfolio`, {
@@ -132,7 +94,6 @@ export default function LiveTradingPage() {
       });
       if (res.ok) {
         const data = await res.json();
-        // Convert simulated portfolio format to live format
         const holdings = data.assets.map((asset: any) => ({
           asset: asset.symbol,
           quantity: asset.balance,
@@ -143,11 +104,9 @@ export default function LiveTradingPage() {
           holdings: holdings 
         });
       } else if (res.status === 401) {
-        // Silent fail on auth errors during initial load
         console.warn("Authentication required for portfolio");
         setPortfolio({ total_value_usdt: 0, holdings: [] });
       } else {
-        // Set default portfolio on error
         setPortfolio({ total_value_usdt: 0, holdings: [] });
       }
     } catch (err) {
@@ -199,13 +158,10 @@ export default function LiveTradingPage() {
       return;
     }
 
-    fetchStrategies();
     refreshAll();
 
-    // Refresh data every 30 seconds
-    const interval = setInterval(refreshAll, 30000);
-    return () => clearInterval(interval);
-  }, [router, fetchStrategies, refreshAll]);
+    // Manual refresh only - bot checks trades every 3 hours
+  }, [router, refreshAll]);
 
   const startTrading = async () => {
     setLoading(true);
@@ -217,7 +173,6 @@ export default function LiveTradingPage() {
         method: "POST",
         headers: getAuthHeaders(),
         body: JSON.stringify({
-          strategy: selectedStrategy,
           symbol: selectedSymbol,
           trade_amount: tradeAmount,
           duration: duration,
@@ -248,7 +203,7 @@ export default function LiveTradingPage() {
       });
 
       if (res.ok) {
-        setSuccess("Trading session stopped");
+        setSuccess("Trading bot stopped");
         await refreshAll();
       }
     } catch (err) {
@@ -256,9 +211,7 @@ export default function LiveTradingPage() {
     }
   };
 
-  const selectedStrategyData = strategies.find((s) => s.id === selectedStrategy);
   const selectedSymbolData = CRYPTO_PAIRS.find((p) => p.symbol === selectedSymbol);
-  const requiresSymbol = selectedStrategyData?.requires_symbol !== false;
 
   return (
     <div className="min-h-screen bg-[#0B0E14] text-slate-200">
@@ -270,10 +223,10 @@ export default function LiveTradingPage() {
           <div>
             <h1 className="text-4xl font-bold text-white flex items-center gap-3">
               <Bot className="w-10 h-10 text-cyan-400" />
-              Trading Bot
+              HMM-SVR Trading Bot
             </h1>
             <p className="text-slate-400 mt-2">
-              Algorithmic trading powered by AI • Paper trading with $10,000 capital
+              Long-term algorithmic trading • Checks every 3 hours • Paper trading
             </p>
           </div>
           <div className="flex gap-2">
@@ -339,47 +292,58 @@ export default function LiveTradingPage() {
           {/* Trading Configuration */}
           <div className="bg-[#151B26] border border-white/5 rounded-2xl p-6 shadow-2xl">
             <h3 className="font-semibold text-white mb-6 flex items-center gap-2">
-              <Target className="w-5 h-5 text-cyan-400" />
-              Start New Trading Session
+              <Bot className="w-5 h-5 text-cyan-400" />
+              Start HMM-SVR Bot
             </h3>
 
             <div className="space-y-5">
-              {/* Strategy Selector */}
+              {/* Strategy Info */}
+              <div className="p-4 bg-cyan-500/10 border border-cyan-500/20 rounded-xl">
+                <div className="text-sm text-cyan-400 font-medium">HMM-SVR Strategy</div>
+                <div className="text-xs text-slate-400 mt-1">
+                  Uses Hidden Markov Models for regime detection and Support Vector Regression for volatility prediction. Long-only positions with dynamic sizing (0x, 1x, 3x).
+                </div>
+              </div>
+
+              {/* Symbol Selector */}
               <div>
                 <label className="text-xs font-semibold text-slate-400 uppercase mb-3 block">
-                  Select Strategy
+                  Trading Pair
                 </label>
                 <div className="relative">
                   <button
-                    onClick={() => setShowStrategyDropdown(!showStrategyDropdown)}
+                    onClick={() => setShowSymbolDropdown(!showSymbolDropdown)}
                     className="w-full px-4 py-3 bg-[#0B0E14] border border-white/10 rounded-xl text-white flex items-center justify-between hover:border-cyan-500/50 transition"
                   >
-                    <div className="text-left">
-                      <div className="font-semibold">{selectedStrategyData?.name || "Select..."}</div>
-                      {selectedStrategyData && (
-                        <div className="text-xs text-slate-400 mt-1">
-                          Risk: <span className={RISK_COLORS[selectedStrategyData.risk_level]}>{selectedStrategyData.risk_level}</span>
-                        </div>
-                      )}
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl" style={{ color: selectedSymbolData?.color }}>
+                        {selectedSymbolData?.logo}
+                      </span>
+                      <div className="text-left">
+                        <div className="font-semibold">{selectedSymbolData?.symbol}</div>
+                        <div className="text-xs text-slate-400">{selectedSymbolData?.name}</div>
+                      </div>
                     </div>
-                    <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform ${showStrategyDropdown ? "rotate-180" : ""}`} />
+                    <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform ${showSymbolDropdown ? "rotate-180" : ""}`} />
                   </button>
 
-                  {showStrategyDropdown && (
+                  {showSymbolDropdown && (
                     <div className="absolute top-full left-0 right-0 mt-2 bg-[#1a2332] border border-white/10 rounded-xl shadow-2xl overflow-hidden z-50">
-                      {strategies.map((strategy) => (
+                      {CRYPTO_PAIRS.map((pair) => (
                         <div
-                          key={strategy.id}
+                          key={pair.symbol}
                           onClick={() => {
-                            setSelectedStrategy(strategy.id);
-                            setShowStrategyDropdown(false);
+                            setSelectedSymbol(pair.symbol);
+                            setShowSymbolDropdown(false);
                           }}
-                          className="px-4 py-3 hover:bg-white/5 cursor-pointer"
+                          className="px-4 py-3 hover:bg-white/5 cursor-pointer flex items-center gap-3"
                         >
-                          <div className="font-medium text-white">{strategy.name}</div>
-                          <div className="text-xs text-slate-400 mt-1">{strategy.description}</div>
-                          <div className="text-xs mt-1">
-                            Risk: <span className={RISK_COLORS[strategy.risk_level]}>{strategy.risk_level}</span>
+                          <span className="text-xl" style={{ color: pair.color }}>
+                            {pair.logo}
+                          </span>
+                          <div>
+                            <div className="font-medium text-white">{pair.symbol}</div>
+                            <div className="text-xs text-slate-400">{pair.name}</div>
                           </div>
                         </div>
                       ))}
@@ -387,69 +351,6 @@ export default function LiveTradingPage() {
                   )}
                 </div>
               </div>
-
-              {/* Symbol Selector - Only show for strategies that need it */}
-              {requiresSymbol ? (
-                <div>
-                  <label className="text-xs font-semibold text-slate-400 uppercase mb-3 block">
-                    Trading Pair
-                  </label>
-                  <div className="relative">
-                    <button
-                      onClick={() => setShowSymbolDropdown(!showSymbolDropdown)}
-                      className="w-full px-4 py-3 bg-[#0B0E14] border border-white/10 rounded-xl text-white flex items-center justify-between hover:border-cyan-500/50 transition"
-                    >
-                      <div className="flex items-center gap-3">
-                        <span className="text-2xl" style={{ color: selectedSymbolData?.color }}>
-                          {selectedSymbolData?.logo}
-                        </span>
-                        <div className="text-left">
-                          <div className="font-semibold">{selectedSymbolData?.symbol}</div>
-                          <div className="text-xs text-slate-400">{selectedSymbolData?.name}</div>
-                        </div>
-                      </div>
-                      <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform ${showSymbolDropdown ? "rotate-180" : ""}`} />
-                    </button>
-
-                    {showSymbolDropdown && (
-                      <div className="absolute top-full left-0 right-0 mt-2 bg-[#1a2332] border border-white/10 rounded-xl shadow-2xl overflow-hidden z-50">
-                        {CRYPTO_PAIRS.map((pair) => (
-                          <div
-                            key={pair.symbol}
-                            onClick={() => {
-                              setSelectedSymbol(pair.symbol);
-                              setShowSymbolDropdown(false);
-                            }}
-                            className="px-4 py-3 hover:bg-white/5 cursor-pointer flex items-center gap-3"
-                          >
-                            <span className="text-xl" style={{ color: pair.color }}>
-                              {pair.logo}
-                            </span>
-                            <div>
-                              <div className="font-medium text-white">{pair.symbol}</div>
-                              <div className="text-xs text-slate-400">{pair.name}</div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ) : (
-                <div className="p-4 bg-cyan-500/10 border border-cyan-500/20 rounded-xl">
-                  <div className="flex items-start gap-3">
-                    <Zap className="w-5 h-5 text-cyan-400 mt-0.5" />
-                    <div>
-                      <div className="font-medium text-cyan-400">Pairs Trading (ETH/BTC)</div>
-                      <div className="text-sm text-slate-400 mt-1">
-                        This strategy trades the ETH/BTC ratio using Z-Score mean reversion.
-                        No coin selection needed - it monitors the pair relationship automatically.
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
               {/* Trade Amount */}
               <div>
                 <label className="text-xs font-semibold text-slate-400 uppercase mb-3 flex items-center gap-2">
@@ -557,7 +458,7 @@ export default function LiveTradingPage() {
               {/* Start Button */}
               <button
                 onClick={startTrading}
-                disabled={loading || !selectedStrategy}
+                disabled={loading}
                 className="w-full px-6 py-4 bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-semibold rounded-xl hover:from-cyan-600 hover:to-blue-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-cyan-500/20 flex items-center justify-center gap-2"
               >
                 {loading ? (

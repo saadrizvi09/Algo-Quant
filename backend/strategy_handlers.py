@@ -1,482 +1,130 @@
 """
-Strategy Handlers for Real-Time Trading
-Converts backtesting strategies into stateful, real-time signal generators
+HMM-SVR Strategy Handler
+Long-term trading strategy using regime detection and volatility prediction.
+Checks every 3 hours - designed for position trading.
 """
-import numpy as np
 import pandas as pd
 from collections import deque
-import os
-import joblib
-from typing import Optional
+from datetime import datetime, timedelta
 
 
-class BaseStrategyHandler:
-    """Base class for all strategy handlers"""
-    
-    def __init__(self, **params):
-        self.params = params
-        print(f"[StrategyHandler] Initialized {self.__class__.__name__} with params: {params}")
-
-    def get_signal(self, price: float) -> str:
-        """
-        Process a single price tick and return trading signal
-        
-        Returns:
-            "BUY", "SELL", or "HOLD"
-        """
-        raise NotImplementedError
-
-
-class HMMStrategyHandler(BaseStrategyHandler):
+class HMMSVRStrategyHandler:
     """
-    HMM-SVR Honest Leverage Strategy Handler (Walk-Forward)
-    Uses strict walk-forward approach: only uses data available up to current moment.
-    Applies dynamic leverage (0x, 1x, 3x) based on regime and predicted risk.
-    
-    IMPORTANT: Pre-loads historical data to enable immediate trading decisions
+    HMM-SVR Strategy Handler for long-term trading.
+    Uses pre-trained models for regime detection and volatility prediction.
+    Position sizing: 0x (no position), 1x (normal), or 3x (high conviction).
     """
     
-    def __init__(self, short_window=12, long_window=26, symbol="BTC", **params):
-        super().__init__(**params)
-        self.short_window = short_window
-        self.long_window = long_window
-        self.symbol = symbol  # For pre-loading data
+    # Fixed EMA windows (standard values for trend detection)
+    SHORT_WINDOW = 12
+    LONG_WINDOW = 26
+    
+    def __init__(self, symbol: str):
+        self.symbol = symbol
         
-        # Use deque for efficient rolling window (252 days = 1 year)
-        self.lookback_window = 252
-        self.prices = deque(maxlen=self.lookback_window)
-        self.log_returns = deque(maxlen=self.lookback_window)
-        self.volatility = deque(maxlen=self.lookback_window)
-        self.downside_vol = deque(maxlen=self.lookback_window)
+        # Buffer for historical prices (400 days for feature calculation)
+        self.price_buffer = deque(maxlen=400)
+        self.last_position_size = 0.0
         
-        # Load pre-trained HMM-SVR model
-        self.hmm_model = None
-        self.svr_model = None
-        self.svr_scaler = None
-        self.state_mapping = None
-        self.avg_train_vol = None
-        self.n_states = 3
-        self._load_model()
-        
-        # Pre-load historical data for immediate trading
+        # Pre-load historical data for immediate signal generation
         self._preload_historical_data()
         
-        print(f"[HMMHandler] Initialized HMM-SVR Honest Strategy")
-        print(f"[HMMHandler] Windows: EMA={short_window}/{long_window}, Lookback={self.lookback_window}")
-        print(f"[HMMHandler] Pre-loaded {len(self.prices)} historical price points")
-        if self.hmm_model is None:
-            print(f"[HMMHandler] ⚠️  WARNING: No trained model. Using simple MA crossover.")
-    
-    def _load_model(self):
-        """Load the pre-trained HMM-SVR hybrid model from disk"""
-        model_path = os.path.join(os.path.dirname(__file__), 'hmm_model.pkl')
-        
-        if os.path.exists(model_path):
-            try:
-                model_data = joblib.load(model_path)
-                self.hmm_model = model_data['hmm_model']
-                self.svr_model = model_data['svr_model']
-                self.svr_scaler = model_data['svr_scaler']
-                self.state_mapping = model_data['state_mapping']
-                self.avg_train_vol = model_data['avg_train_vol']
-                self.n_states = model_data['n_states']
-                print(f"[HMMHandler] ✅ Loaded HMM-SVR model from {model_path}")
-                print(f"[HMMHandler] States: 0=Low Vol, {self.n_states-1}=High Vol")
-                print(f"[HMMHandler] Avg training vol: {self.avg_train_vol:.6f}")
-            except Exception as e:
-                print(f"[HMMHandler] ❌ Error loading model: {e}")
-                self.hmm_model = None
-        else:
-            print(f"[HMMHandler] ℹ️  Model file not found at {model_path}")
-            print(f"[HMMHandler] Run backtest to generate hmm_model.pkl")
+        print(f"[HMM-SVR] Initialized for {symbol} | {len(self.price_buffer)} historical prices")
     
     def _preload_historical_data(self):
-        """Pre-load historical price data for immediate signal generation"""
+        """Pre-load historical price data from Yahoo Finance."""
         try:
             import yfinance as yf
             
             # Map symbol to Yahoo Finance ticker
             symbol_map = {
                 "BTC": "BTC-USD",
+                "BTCUSDT": "BTC-USD",
                 "ETH": "ETH-USD",
+                "ETHUSDT": "ETH-USD",
                 "BNB": "BNB-USD",
+                "BNBUSDT": "BNB-USD",
                 "SOL": "SOL-USD",
-                "LINK": "LINK-USD"
+                "SOLUSDT": "SOL-USD",
+                "LINK": "LINK-USD",
+                "LINKUSDT": "LINK-USD"
             }
-            ticker_symbol = symbol_map.get(self.symbol, f"{self.symbol}-USD")
             
-            # Fetch daily data for the lookback period
+            ticker_symbol = symbol_map.get(self.symbol.upper(), f"{self.symbol.replace('USDT', '')}-USD")
+            
+            # Fetch 450 days of daily data
             ticker = yf.Ticker(ticker_symbol)
-            hist = ticker.history(period="1y", interval="1d")  # 1 year of daily data
+            end_date = datetime.now()
+            start_date = end_date - timedelta(days=450)
+            hist = ticker.history(start=start_date, end=end_date, interval="1d")
             
             if hist.empty:
-                print(f"[HMMHandler] ⚠️ Could not pre-load historical data for {ticker_symbol}")
+                print(f"[HMM-SVR] ⚠️ No historical data for {ticker_symbol}")
                 return
             
+            # Load last 400 prices into buffer
             prices = hist['Close'].dropna().values
+            for price in prices[-400:]:
+                self.price_buffer.append(float(price))
             
-            # Take the last N data points we need
-            n_points = min(self.lookback_window, len(prices))
-            prices = prices[-n_points:]
-            
-            # Feed prices into our deques
-            for i, price in enumerate(prices):
-                self.prices.append(price)
-                
-                # Calculate log return
-                if i > 0:
-                    log_ret = np.log(prices[i] / prices[i-1])
-                    self.log_returns.append(log_ret)
-                    
-                    # Calculate rolling volatility after 10 points
-                    if len(self.log_returns) >= 10:
-                        recent_returns = list(self.log_returns)[-10:]
-                        vol = np.std(recent_returns)
-                        self.volatility.append(vol)
-                        
-                        # Calculate downside volatility
-                        negative_returns = [r for r in recent_returns if r < 0]
-                        dside_vol = np.std(negative_returns) if len(negative_returns) > 0 else 0
-                        self.downside_vol.append(dside_vol)
-            
-            print(f"[HMMHandler] ✅ Pre-loaded {len(self.prices)} prices, {len(self.log_returns)} returns")
+            print(f"[HMM-SVR] ✅ Loaded {len(self.price_buffer)} prices")
             
         except Exception as e:
-            print(f"[HMMHandler] ⚠️ Error pre-loading historical data: {e}")
-            import traceback
-            traceback.print_exc()
+            print(f"[HMM-SVR] ⚠️ Error loading historical data: {e}")
     
     def get_signal(self, price: float) -> str:
         """
-        Generate trading signal with leverage (Walk-Forward Honest Approach)
-        
-        Logic:
-        1. Maintain rolling window of historical prices (252 days)
-        2. Calculate features using ONLY historical data
-        3. Use HMM to predict current regime (using full history sequence)
-        4. Use SVR to predict next-day volatility (using today's features)
-        5. Calculate leverage: 0x (crash), 1x (normal), 3x (certainty)
-        6. Return signal (HOLD forced in crash regime)
-        
-        Returns: "BUY", "SELL", or "HOLD"
-        """
-        # Add price to rolling window
-        self.prices.append(price)
-        
-        # Calculate log return
-        if len(self.prices) >= 2:
-            log_ret = np.log(self.prices[-1] / self.prices[-2])
-            self.log_returns.append(log_ret)
-        
-        # Calculate rolling volatility (10-period to match training)
-        if len(self.log_returns) >= 10:
-            recent_returns = list(self.log_returns)[-10:]
-            vol = np.std(recent_returns)
-            self.volatility.append(vol)
-            
-            # Calculate downside volatility (negative returns only)
-            negative_returns = [r for r in recent_returns if r < 0]
-            dside_vol = np.std(negative_returns) if len(negative_returns) > 0 else 0
-            self.downside_vol.append(dside_vol)
-        
-        # Wait until we have enough data
-        if len(self.prices) < max(self.long_window, 30):
-            return "HOLD"
-        
-        # Convert to pandas for EMA calculation
-        price_series = pd.Series(list(self.prices))
-        
-        # Calculate EMAs using ONLY historical data (honest approach)
-        ema_short = price_series.ewm(span=self.short_window).mean().iloc[-1]
-        ema_long = price_series.ewm(span=self.long_window).mean().iloc[-1]
-        
-        # Generate base signal (EMA crossover)
-        base_signal = "BUY" if ema_short > ema_long else "SELL"
-        
-        # If model loaded, use honest HMM-SVR prediction
-        if (self.hmm_model is not None and self.svr_model is not None and 
-            len(self.log_returns) >= 30 and len(self.volatility) >= 10):
-            try:
-                # A. Honest Regime Detection (using full historical sequence)
-                # Prepare features for ALL history in window
-                returns_array = np.array(list(self.log_returns))
-                vol_array = np.array(list(self.volatility))
-                
-                # Pad if needed to match lengths
-                min_len = min(len(returns_array), len(vol_array))
-                X_history = np.column_stack([
-                    returns_array[-min_len:] * 100,
-                    vol_array[-min_len:] * 100
-                ])
-                
-                # Predict sequence and get CURRENT regime
-                hidden_states = self.hmm_model.predict(X_history)
-                current_state_raw = hidden_states[-1]
-                current_regime = self.state_mapping[current_state_raw]
-                
-                # B. Honest Volatility Prediction (using today's features)
-                svr_features = np.array([[
-                    self.log_returns[-1],
-                    self.volatility[-1],
-                    self.downside_vol[-1],
-                    current_regime
-                ]])
-                
-                # Scale and predict
-                svr_features_scaled = self.svr_scaler.transform(svr_features)
-                predicted_vol = self.svr_model.predict(svr_features_scaled)[0]
-                risk_ratio = predicted_vol / self.avg_train_vol
-                
-                # C. Calculate Leverage
-                if current_regime == self.n_states - 1:  # Crash regime
-                    leverage = 0.0
-                    signal = "HOLD"  # Force exit
-                elif current_regime == 0 and risk_ratio < 0.5:  # Certainty
-                    leverage = 3.0
-                    signal = base_signal
-                else:  # Normal
-                    leverage = 1.0
-                    signal = base_signal
-                
-                # Store for external access
-                self.current_leverage = leverage
-                self.current_regime = current_regime
-                self.current_risk_ratio = risk_ratio
-                
-                print(f"[HMMHandler] Regime={current_regime}, Risk={risk_ratio:.3f}, Lev={leverage}x, Signal={signal}")
-                return signal
-                    
-            except Exception as e:
-                print(f"[HMMHandler] Error in prediction: {e}")
-                self.current_leverage = 1.0
-                return base_signal
-        
-        # Fallback: Simple EMA crossover with 1x leverage
-        self.current_leverage = 1.0
-        return base_signal
-    
-    def get_leverage(self) -> float:
-        """Return current leverage multiplier (0x, 1x, or 3x)"""
-        return getattr(self, 'current_leverage', 1.0)
-    
-    def get_regime(self) -> Optional[int]:
-        """Return current market regime (0=Low Vol, 1=Neutral, 2=High Vol)"""
-        return getattr(self, 'current_regime', None)
-    
-    def get_risk_ratio(self) -> Optional[float]:
-        """Return current risk ratio (predicted_vol / avg_train_vol)"""
-        return getattr(self, 'current_risk_ratio', None)
-
-
-class PairsStrategyHandler(BaseStrategyHandler):
-    """
-    Pairs Trading Strategy Handler
-    Trades the spread between ETH and BTC using Z-score mean reversion
-    
-    Logic:
-    - Tracks ETH/BTC ratio
-    - Calculates Z-score (deviation from mean)
-    - BUY when Z-score < -threshold (ratio is low, expect reversion up)
-    - SELL when Z-score > +threshold (ratio is high, expect reversion down)
-    - CLOSE when Z-score crosses zero (mean reversion complete)
-    
-    IMPORTANT: Pre-loads historical data to enable immediate trading decisions
-    """
-    
-    def __init__(self, window=60, threshold=1.5, **params):
-        super().__init__(**params)
-        self.window = window
-        self.threshold = threshold  # Z-score threshold (lower = more trades)
-        
-        # Track the ETH/BTC ratio - larger buffer for calculations
-        self.ratio_history = deque(maxlen=window * 2)
-        
-        # Track position state
-        self.position = None  # None, 'LONG', 'SHORT'
-        self.entry_ratio = None
-        self.last_signal_time = None
-        self.min_signal_interval = 300  # Minimum 5 minutes between signals
-        
-        # Pre-load historical data for immediate trading
-        self._preload_historical_data()
-        
-        print(f"[PairsHandler] Initialized with window={window}, threshold={threshold}")
-        print(f"[PairsHandler] Pre-loaded {len(self.ratio_history)} historical data points")
-    
-    def _preload_historical_data(self):
-        """Pre-load historical ETH/BTC ratio data for immediate signal generation"""
-        try:
-            import yfinance as yf
-            from datetime import datetime, timedelta
-            
-            # Fetch recent data (5-minute intervals for past 7 days)
-            tickers = "BTC-USD ETH-USD"
-            data = yf.download(tickers, period="7d", interval="5m", group_by='ticker', progress=False)
-            
-            if data.empty:
-                print("[PairsHandler] ⚠️ Could not pre-load historical data from Yahoo Finance")
-                return
-            
-            # Extract prices and calculate ratio
-            if isinstance(data.columns, pd.MultiIndex):
-                btc_prices = data['BTC-USD']['Close'].dropna()
-                eth_prices = data['ETH-USD']['Close'].dropna()
-            else:
-                print("[PairsHandler] ⚠️ Unexpected data structure")
-                return
-            
-            # Align indexes and calculate ratio
-            common_idx = btc_prices.index.intersection(eth_prices.index)
-            btc_prices = btc_prices.loc[common_idx]
-            eth_prices = eth_prices.loc[common_idx]
-            
-            # Take the last N data points we need
-            n_points = min(self.window + 20, len(btc_prices))
-            btc_prices = btc_prices.tail(n_points)
-            eth_prices = eth_prices.tail(n_points)
-            
-            # Calculate and store ratio history
-            for btc, eth in zip(btc_prices, eth_prices):
-                if btc > 0:
-                    ratio = eth / btc
-                    self.ratio_history.append(ratio)
-            
-            print(f"[PairsHandler] ✅ Pre-loaded {len(self.ratio_history)} ratio data points")
-            
-            # Calculate initial Z-score
-            if len(self.ratio_history) >= self.window:
-                ratio_array = np.array(list(self.ratio_history))
-                mean_ratio = np.mean(ratio_array[-self.window:])
-                std_ratio = np.std(ratio_array[-self.window:])
-                if std_ratio > 0:
-                    z_score = (ratio_array[-1] - mean_ratio) / std_ratio
-                    print(f"[PairsHandler] Initial Z-Score: {z_score:.3f}")
-            
-        except Exception as e:
-            print(f"[PairsHandler] ⚠️ Error pre-loading historical data: {e}")
-            import traceback
-            traceback.print_exc()
-    
-    def update_ratio(self, eth_price: float, btc_price: float):
-        """
-        Update the ETH/BTC ratio
-        Call this method to feed price data for both assets
-        """
-        if btc_price > 0:
-            ratio = eth_price / btc_price
-            self.ratio_history.append(ratio)
-    
-    def get_signal(self) -> str:
-        """
-        Generate signal based on ETH/BTC ratio Z-score
-        Note: This method doesn't take a price parameter because it uses
-        the ratio data fed via update_ratio()
+        Generate trading signal using HMM-SVR model.
         
         Returns:
-            "BUY" - Open long on ratio (expect ratio to increase)
-            "SELL" - Close position or open short (expect ratio to decrease)
-            "HOLD" - Do nothing
+            "BUY" - open/increase position
+            "SELL" - close position
+            "HOLD" - maintain current state
         """
-        if len(self.ratio_history) < self.window:
+        # Add current price to buffer
+        self.price_buffer.append(float(price))
+        
+        # Need at least 100 data points
+        if len(self.price_buffer) < 100:
             return "HOLD"
         
         try:
-            # Calculate Z-score of current ratio
-            ratio_array = np.array(list(self.ratio_history))
-            mean_ratio = np.mean(ratio_array[-self.window:])
-            std_ratio = np.std(ratio_array[-self.window:])
+            # Convert buffer to DataFrame for model
+            df = pd.DataFrame({'Close': list(self.price_buffer)})
             
-            if std_ratio == 0 or np.isnan(std_ratio):
+            # Get signal from model_manager
+            from model_manager import calculate_signal_and_position
+            
+            result = calculate_signal_and_position(
+                symbol=self.symbol,
+                recent_data=df,
+                short_window=self.SHORT_WINDOW,
+                long_window=self.LONG_WINDOW
+            )
+            
+            if result is None or 'error' in result:
+                print(f"[HMM-SVR] Error: {result}")
                 return "HOLD"
             
-            current_ratio = ratio_array[-1]
-            z_score = (current_ratio - mean_ratio) / std_ratio
+            # Extract results
+            target_position = result.get('target_position_size', 0.0)
+            regime = result.get('regime_label', 'Unknown')
+            ema_signal = result.get('ema_signal', 0)
             
-            # Entry Logic
-            if self.position is None:
-                # Ratio is too LOW (Z < -threshold) → Expect reversion UP → BUY (go LONG on ratio)
-                if z_score < -self.threshold:
-                    self.position = "LONG"
-                    self.entry_ratio = current_ratio
-                    print(f"[PairsHandler] 📊 Z-Score: {z_score:.2f} | Opening LONG (ratio undervalued)")
-                    return "BUY"
-                
-                # Ratio is too HIGH (Z > +threshold) → Expect reversion DOWN → Don't buy
-                # In a real pairs strategy, you'd short here, but for simplicity we just avoid
-                elif z_score > self.threshold:
-                    # For simulated trading with single asset, we treat this as SELL signal
-                    # (meaning: don't hold ETH, ratio will decrease)
-                    return "HOLD"  # Or "SELL" if you want to close any existing position
+            ema_str = 'Bullish' if ema_signal else 'Bearish'
+            print(f"[HMM-SVR] Regime: {regime} | Target: {target_position}x | Trend: {ema_str}")
             
-            # Exit Logic (Mean Reversion)
-            elif self.position == "LONG":
-                # Close LONG when Z-score crosses back to zero (mean reversion)
-                if z_score >= 0:
-                    pnl_pct = (current_ratio - self.entry_ratio) / self.entry_ratio * 100
-                    print(f"[PairsHandler] 📊 Z-Score: {z_score:.2f} | Closing LONG (mean reversion) | P&L: {pnl_pct:.2f}%")
-                    self.position = None
-                    self.entry_ratio = None
-                    return "SELL"
-                
-                # Or close if Z-score goes too high (stop loss)
-                elif z_score > self.threshold * 1.5:
-                    print(f"[PairsHandler] ⚠️  Z-Score: {z_score:.2f} | Stop loss triggered")
-                    self.position = None
-                    self.entry_ratio = None
-                    return "SELL"
+            # Determine action based on position change
+            if target_position > self.last_position_size:
+                signal = "BUY"
+            elif target_position < self.last_position_size:
+                signal = "SELL"
+            else:
+                signal = "HOLD"
             
-            # Log current state
-            if len(self.ratio_history) % 6 == 0:  # Log every 6th update (every minute if 10s interval)
-                print(f"[PairsHandler] Z-Score: {z_score:.2f} | Ratio: {current_ratio:.6f} | Position: {self.position or 'NONE'}")
-            
-            return "HOLD"
+            self.last_position_size = target_position
+            return signal
             
         except Exception as e:
-            print(f"[PairsHandler] ❌ Error calculating signal: {e}")
+            print(f"[HMM-SVR] Error generating signal: {e}")
             return "HOLD"
-    
-    def get_current_zscore(self) -> Optional[float]:
-        """Get the current Z-score for monitoring"""
-        if len(self.ratio_history) < self.window:
-            return None
-        
-        try:
-            ratio_array = np.array(list(self.ratio_history))
-            mean_ratio = np.mean(ratio_array[-self.window:])
-            std_ratio = np.std(ratio_array[-self.window:])
-            
-            if std_ratio == 0 or np.isnan(std_ratio):
-                return None
-            
-            current_ratio = ratio_array[-1]
-            z_score = (current_ratio - mean_ratio) / std_ratio
-            
-            if np.isnan(z_score) or np.isinf(z_score):
-                return None
-                
-            return z_score
-        except Exception as e:
-            print(f"[PairsHandler] Error calculating Z-score: {e}")
-            return None
-
-
-def create_strategy_handler(strategy: str, **params) -> BaseStrategyHandler:
-    """
-    Factory function to create appropriate strategy handler
-    
-    Args:
-        strategy: Strategy name or ID (e.g., "HMM Regime Filter", "hmm", "Pairs Strategy", "pairs")
-        **params: Strategy-specific parameters
-    
-    Returns:
-        Instance of appropriate strategy handler
-    """
-    # Normalize strategy name (accept both ID and full name)
-    strategy_lower = strategy.lower()
-    
-    if strategy_lower in ["hmm", "hmm regime filter"]:
-        return HMMStrategyHandler(**params)
-    elif strategy_lower in ["pairs", "pairs strategy", "pairs trading (eth/btc)"]:
-        return PairsStrategyHandler(**params)
-    else:
-        raise ValueError(f"Unknown strategy: {strategy}")

@@ -16,7 +16,6 @@ from jose import JWTError, jwt
 
 # Import your strategy logic
 from strategy import train_models_and_backtest
-from pairs_strategy import simulate_pairs_backtest
 from live_trading import (
     get_account_balance,
     get_portfolio_value,
@@ -28,13 +27,29 @@ from live_trading import (
     get_session_status,
     get_user_sessions,
     AVAILABLE_STRATEGIES
-) 
+)
+
+# Import model manager for HMM-SVR models
+from model_manager import (
+    load_all_models,
+    train_and_save_model,
+    load_model,
+    is_model_trained,
+    get_model_info,
+    get_cached_models
+)
 
 # --- 1. LIFESPAN (Create Tables on Startup) ---
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     create_db_and_tables()
-    # Note: Portfolio initialization moved to per-user basis (on first API call)
+    # Load all pre-trained HMM-SVR models from disk into memory
+    print("\n🚀 Starting AlgoQuant API...")
+    loaded_models = load_all_models()
+    if loaded_models:
+        print(f"✅ Loaded {len(loaded_models)} HMM-SVR models: {list(loaded_models.keys())}")
+    else:
+        print("ℹ️  No pre-trained models found. Train models using /api/models/train/{symbol}")
     yield
 
 app = FastAPI(lifespan=lifespan)
@@ -82,30 +97,21 @@ class BacktestRequest(BaseModel):
     ticker: str
     start_date: str
     end_date: str
-    strategy: str = "hmm"  # "hmm" or "pairs"
+    strategy: str = "hmm_svr"
     # Strategy-specific parameters
-    short_window: int = 12  # For HMM strategy
-    long_window: int = 26   # For HMM strategy
-    n_states: int = 3       # For HMM strategy
-    window: int = 30        # For pairs strategy
-    threshold: float = 1.0  # For pairs strategy
+    short_window: int = 12
+    long_window: int = 26
+    n_states: int = 3
 
 class Token(BaseModel):
     access_token: str
     token_type: str
 
 class LiveTradingRequest(BaseModel):
-    strategy: str
     symbol: str
     trade_amount: float
     duration: int
     duration_unit: str = "minutes"  # "minutes" or "days"
-    # Strategy-specific parameters
-    short_window: int = 12  # For HMM strategy
-    long_window: int = 26   # For HMM strategy
-    window: int = 60        # For pairs strategy
-    threshold: float = 1.0  # For pairs strategy
-    interval: str = '5m'    # Time interval: '1m', '5m', '15m', '1h'
 
 # --- DATABASE DEPENDENCY ---
 def get_session():
@@ -216,22 +222,12 @@ def run_backtest(
 ):
     print(f"User {current_user} is running {req.strategy} backtest...")
     
-    if req.strategy == "pairs":
-        # Run Pairs Trading Strategy
-        result = simulate_pairs_backtest(
-            req.start_date, req.end_date,
-            initial_capital=10000,
-            window=req.window,
-            threshold=req.threshold
-        )
-    else:
-        # Run HMM Strategy
-        result = train_models_and_backtest(
-            req.ticker, req.start_date, req.end_date, 
-            short_window=req.short_window,
-            long_window=req.long_window,
-            n_states=req.n_states
-        )
+    result = train_models_and_backtest(
+        req.ticker, req.start_date, req.end_date, 
+        short_window=req.short_window,
+        long_window=req.long_window,
+        n_states=req.n_states
+    )
     return result
 
 
@@ -239,20 +235,101 @@ def run_backtest(
 def get_backtest_strategies(current_user: str = Depends(get_current_user)):
     """Get available backtest strategies"""
     return {
-        "strategies": [
-            {
-                "id": "hmm",
-                "name": "HMM Regime Filter",
-                "description": "Hidden Markov Model that detects market regimes and filters trades during high volatility",
-                "requires_ticker": True
-            },
-            {
-                "id": "pairs",
-                "name": "Pairs Trading (Test)",
-                "description": "ETH/BTC mean reversion using Z-Score. High frequency strategy for testing.",
-                "requires_ticker": False
-            }
-        ]
+        "strategies": []
+    }
+
+
+# --- MODEL MANAGEMENT ROUTES (HMM-SVR) ---
+
+@app.post("/api/models/train/{symbol}")
+def train_model(symbol: str, current_user: str = Depends(get_current_user)):
+    """
+    Train and save HMM-SVR model for a specific symbol.
+    This trains on 4 years of historical data and saves the model to disk.
+    The model will be automatically loaded on next startup.
+    
+    Example: POST /api/models/train/BTCUSDT
+    """
+    print(f"[API] User {current_user} requested model training for {symbol}")
+    
+    # Validate symbol format
+    symbol = symbol.upper()
+    if not symbol.endswith('USDT'):
+        raise HTTPException(
+            status_code=400, 
+            detail="Symbol must end with USDT (e.g., BTCUSDT, ETHUSDT)"
+        )
+    
+    result = train_and_save_model(symbol, n_states=3)
+    
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    
+    return {
+        "success": True,
+        "message": f"Model trained and saved for {symbol}",
+        "details": result
+    }
+
+
+@app.get("/api/models/status/{symbol}")
+def get_model_status(symbol: str, current_user: str = Depends(get_current_user)):
+    """
+    Check if a model exists and get its metadata for a symbol.
+    """
+    symbol = symbol.upper()
+    
+    if not is_model_trained(symbol):
+        return {
+            "trained": False,
+            "symbol": symbol,
+            "message": f"No model found for {symbol}. Train it using POST /api/models/train/{symbol}"
+        }
+    
+    info = get_model_info(symbol)
+    return {
+        "trained": True,
+        "symbol": symbol,
+        "info": info
+    }
+
+
+@app.get("/api/models")
+def list_models(current_user: str = Depends(get_current_user)):
+    """
+    List all available trained models and their status.
+    """
+    cached = get_cached_models()
+    
+    # Also check for models on disk that aren't loaded yet
+    import os
+    from model_manager import MODEL_DIR
+    
+    disk_models = []
+    if os.path.exists(MODEL_DIR):
+        for filename in os.listdir(MODEL_DIR):
+            if filename.endswith('_hmm_svr.pkl'):
+                symbol = filename.replace('_hmm_svr.pkl', '').upper()
+                disk_models.append(symbol)
+    
+    return {
+        "loaded_models": cached,
+        "available_on_disk": disk_models,
+        "total_count": len(set(list(cached.keys()) + disk_models))
+    }
+
+
+@app.post("/api/models/reload")
+def reload_models(current_user: str = Depends(get_current_user)):
+    """
+    Reload all models from disk into memory.
+    Useful if models were trained externally or after a restart.
+    """
+    result = load_all_models()
+    return {
+        "success": True,
+        "loaded_models": list(result.keys()),
+        "count": sum(result.values())
     }
 
 
@@ -316,8 +393,6 @@ def start_trading(req: LiveTradingRequest, current_user: str = Depends(get_curre
         duration_unit=req.duration_unit,
         short_window=req.short_window,
         long_window=req.long_window,
-        window=req.window,
-        threshold=req.threshold,
         interval=req.interval
     )
     if "error" in result:
@@ -380,7 +455,7 @@ def get_simulated_portfolio(current_user: str = Depends(get_current_user)):
 
 @app.post("/api/simulated/start")
 def start_simulated_session(req: LiveTradingRequest, current_user: str = Depends(get_current_user)):
-    """Start a simulated trading session using internal database wallet"""
+    """Start HMM-SVR trading bot session"""
     from simulated_trading import start_simulated_trading
     from database import initialize_portfolio_if_empty
     
@@ -393,15 +468,9 @@ def start_simulated_session(req: LiveTradingRequest, current_user: str = Depends
     
     result = start_simulated_trading(
         user_email=current_user,
-        strategy=req.strategy,
         symbol=req.symbol,
         trade_amount=req.trade_amount,
-        duration_minutes=duration_minutes,
-        short_window=req.short_window,
-        long_window=req.long_window,
-        window=req.window,
-        threshold=req.threshold,
-        interval=req.interval
+        duration_minutes=duration_minutes
     )
     
     if "error" in result:
@@ -411,7 +480,7 @@ def start_simulated_session(req: LiveTradingRequest, current_user: str = Depends
 
 @app.post("/api/simulated/stop/{session_id}")
 def stop_simulated_session(session_id: str, current_user: str = Depends(get_current_user)):
-    """Stop a simulated trading session"""
+    """Stop trading bot session"""
     from simulated_trading import stop_simulated_trading
     
     result = stop_simulated_trading(session_id)
@@ -422,7 +491,7 @@ def stop_simulated_session(session_id: str, current_user: str = Depends(get_curr
 
 @app.get("/api/simulated/session/{session_id}")
 def get_simulated_session(session_id: str, current_user: str = Depends(get_current_user)):
-    """Get status of a simulated trading session"""
+    """Get bot session status"""
     from simulated_trading import get_simulated_session_status
     
     status = get_simulated_session_status(session_id)

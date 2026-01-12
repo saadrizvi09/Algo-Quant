@@ -232,14 +232,10 @@ export default function DashboardPage() {
     
     fetchInitialData();
 
-    // Set up auto-refresh interval (silent updates, no loading state)
-    const interval = setInterval(() => {
-      Promise.all([fetchPortfolio(false), fetchRecentTrades(), fetchSessions()]);
-    }, 30000);
+    // Portfolio values update via WebSocket live prices - no auto-refresh needed
     
     // Cleanup on unmount
     return () => {
-      clearInterval(interval);
       if (wsRef.current) {
         wsRef.current.close();
         wsRef.current = null;
