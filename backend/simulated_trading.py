@@ -78,22 +78,23 @@ class SimulatedTradingSession:
     def _ensure_model_trained(self):
         """Check if model exists, train if not"""
         try:
-            from model_manager import load_model, train_model
+            from model_manager import load_model, train_and_save_model
             
             # Check if model exists
             model_data = load_model(self.base_asset)
             
             if model_data is None:
                 print(f"[HMM-SVR Bot] 🔄 No model found for {self.base_asset}, training now...")
-                print(f"[HMM-SVR Bot] ⏳ Training on 180 days of historical data...")
+                print(f"[HMM-SVR Bot] ⏳ Training on historical data (this may take 30-60 seconds)...")
                 
-                # Train model with 180 days of data
-                success = train_model(self.base_asset, days=180)
+                # Train model
+                result = train_and_save_model(self.base_asset, n_states=3)
                 
-                if success:
+                if result and 'error' not in result:
                     print(f"[HMM-SVR Bot] ✅ Model trained successfully for {self.base_asset}")
                 else:
-                    print(f"[HMM-SVR Bot] ⚠️ Model training failed, will retry on next run")
+                    error_msg = result.get('error', 'Unknown error') if result else 'Training failed'
+                    print(f"[HMM-SVR Bot] ⚠️ Model training failed: {error_msg}")
             else:
                 print(f"[HMM-SVR Bot] ✅ Model already trained for {self.base_asset}")
                 
