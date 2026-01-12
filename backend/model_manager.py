@@ -218,18 +218,18 @@ def train_and_save_model(symbol: str, n_states: int = 3) -> Dict[str, Any]:
     
     # Try Yahoo Finance first, then Binance
     df = fetch_training_data_yfinance(symbol)
-    if df is None or len(df) < 500:
+    if df is None or len(df) < 250:
         print("[ModelManager] Falling back to Binance data...")
         df = fetch_training_data_binance(symbol)
     
-    if df is None or len(df) < 500:
-        return {"error": f"Insufficient data for {symbol}. Need at least 500 days."}
+    if df is None or len(df) < 250:
+        return {"error": f"Insufficient data for {symbol}. Need at least 250 days, got {len(df) if df is not None else 0}."}
     
     # Engineer features
     df = engineer_features(df)
     
-    if len(df) < 365:
-        return {"error": f"Insufficient data after feature engineering for {symbol}"}
+    if len(df) < 200:
+        return {"error": f"Insufficient data after feature engineering for {symbol}. Got {len(df)} days."}
     
     print(f"[ModelManager] Training on {len(df)} days of data...")
     
