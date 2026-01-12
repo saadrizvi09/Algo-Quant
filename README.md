@@ -9,9 +9,9 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.124-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![Next.js](https://img.shields.io/badge/Next.js-15.0-000000?style=flat-square&logo=next.js&logoColor=white)](https://nextjs.org/)
 
-**Production-grade algorithmic trading with ML-driven regime detection, walk-forward backtesting, and zero lookahead bias**
+**Production-grade long-term algorithmic trading with HMM-SVR regime detection and automated model training**
 
-[🎯 Performance](#-performance-proven-strategy-excellence) • [🚀 Quick Start](#-quick-start) • [🎲 Strategies](#-trading-strategies) • [📚 Features](#-core-features)
+[🎯 Live Demo](#-live-demo) • [🚀 Quick Start](#-quick-start) • [📊 Strategy](#-hmm-svr-strategy-explained) • [📚 Features](#-core-features)
 
 </div>
 
@@ -19,19 +19,97 @@
 
 ## 🎯 Overview
 
-AlgoQuant is a **full-stack quantitative trading platform** featuring HMM-SVR hybrid strategies with walk-forward validation. Trade cryptocurrencies with $10,000 virtual capital, backtest strategies without lookahead bias, and monitor performance in real-time.
+AlgoQuant is a **full-stack quantitative trading platform** featuring HMM-SVR (Hidden Markov Model + Support Vector Regression) for long-term cryptocurrency trading. The bot checks every **3 hours** for optimal entry/exit points using AI-driven regime detection and volatility prediction.
 
 **Why AlgoQuant?**
-- 🤖 **AI-Driven** - HMM regime detection + SVR volatility prediction with 252-day sliding windows
-- 📊 **Honest Backtesting** - Walk-forward simulation eliminates future data leakage
-- 💼 **Risk-Managed** - Dynamic leverage (0x/1x/3x) based on regime confidence
-- 🆓 **Zero Cost** - Free APIs (Binance Testnet + Yahoo Finance), no subscriptions
-- 🔒 **Secure** - JWT auth, bcrypt hashing, per-user isolated portfolios
-- ⚡ **Real-Time** - 10-second execution intervals with live price feeds
+- 🤖 **AI-Driven** - HMM regime detection + SVR volatility prediction
+- 📊 **Long-Term Focus** - 3-hour intervals, position holding for days/weeks
+- 🎯 **Auto-Training** - Models train automatically on first run (no manual setup)
+- 💼 **Risk-Managed** - Dynamic position sizing (0x/1x/3x) based on regime confidence
+- 🆓 **Zero Cost** - Free APIs (Yahoo Finance), no subscriptions
+- 🔒 **Secure** - JWT auth, bcrypt hashing, isolated portfolios
+- ⚡ **Deployed** - Live on Hugging Face Spaces
 
 ---
 
-## 🏆 Performance: Proven Strategy Excellence
+## 🌐 Live Demo
+
+**🔗 Try it now:** [algoquant.hf.space](https://algo-quant-pi.vercel.app)
+
+**Demo Credentials:**
+- Email: `demo@algoquant.com`
+- Password: `demo123`
+
+**Starting Balance:** $10,000 USDT (paper trading)
+
+## � HMM-SVR Strategy Explained
+
+### 🧠 What is HMM-SVR?
+
+**HMM (Hidden Markov Model)** detects market regimes:
+- **State 0 (Safe)**: Low volatility, stable trends → High confidence trades
+- **State 1 (Neutral)**: Normal market conditions → Standard trading
+- **State 2 (Crash)**: High volatility, panic selling → Exit all positions
+
+**SVR (Support Vector Regression)** predicts future volatility to assess risk.
+
+### 🔄 How It Works (Every 3 Hours)
+
+```mermaid
+graph LR
+    A[Fetch Price Data] --> B[Calculate EMAs 12/26]
+    B --> C[Calculate RSI]
+    C --> D[Calculate Volatility]
+    D --> E[HMM Regime Detection]
+    E --> F[SVR Volatility Prediction]
+    F --> G{Regime + Trend?}
+    G -->|Safe + Bullish + Low Vol| H[BUY 3x]
+    G -->|Neutral + Bullish| I[BUY 1x]
+    G -->|Crash or Bearish| J[SELL/HOLD]
+```
+
+### 📈 Signal Generation Logic
+
+```python
+if short_ema > long_ema:  # Bullish Trend
+    if regime == "Safe" and predicted_vol < 0.02:
+        signal = "BUY_3x"  # High conviction
+    elif regime == "Neutral" and predicted_vol < 0.04:
+        signal = "BUY_1x"  # Standard position
+    else:
+        signal = "HOLD"    # Wait for better conditions
+else:  # Bearish Trend
+    if has_position:
+        signal = "SELL"    # Exit position
+    else:
+        signal = "HOLD"    # Stay in cash
+```
+
+### 🎯 Position Sizing Strategy
+
+| Regime | Volatility | EMA Signal | Position Size | Action |
+|--------|-----------|------------|---------------|--------|
+| Safe | Low (<2%) | Bullish | **3x** | Maximize gains in stable trends |
+| Neutral | Medium (2-4%) | Bullish | **1x** | Normal trading |
+| Safe/Neutral | High (>4%) | Bullish | **0x** | Too risky, stay out |
+| Any | Any | Bearish | **0x** | Exit immediately |
+| Crash | Any | Any | **0x** | Emergency exit |
+
+### ⚙️ Technical Parameters
+
+| Parameter | Value | Purpose |
+|-----------|-------|---------|
+| **Check Interval** | 3 hours | Long-term position trading |
+| **Short EMA** | 12 periods | Fast trend detection |
+| **Long EMA** | 26 periods | Slow trend confirmation |
+| **HMM States** | 3 (Safe/Neutral/Crash) | Regime classification |
+| **SVR Volatility Prediction** | ANY | Risk Factor Calculation |
+| **Historical Buffer** | 400 days | Feature calculation |
+| **Training Data** | 250+ days | Minimum for model training |
+
+---
+
+## �🏆 Performance: Proven Strategy Excellence
 
 **Our HMM-SVR Walk-Forward strategy has been battle-tested across 5 major cryptocurrencies with exceptional results:**
 
@@ -77,6 +155,12 @@ AlgoQuant is a **full-stack quantitative trading platform** featuring HMM-SVR hy
 ![BNB Results](./image4.png)
 **Result:** ✅ Strategy massively outperforms buy & hold with controlled drawdown
 
+---
+
+## 🪵 Trading Logs
+![Trading Logs](./image.png)
+**Result:** ✅ Detailed logs showing model training, signal generation, and trade execution.
+
 </div>
 
 ### 🎯 Key Performance Insights
@@ -93,7 +177,7 @@ AlgoQuant is a **full-stack quantitative trading platform** featuring HMM-SVR hy
 
 ---
 
-## 🎲 Trading Strategies
+## 🎲 Trading Strategies(will add more soon)
 
 ### 1. HMM-SVR Leverage Strategy (Walk-Forward) ⭐ Flagship
 
@@ -135,147 +219,55 @@ Day-by-Day Simulation → 252-Day Sliding Window → HMM Regime + SVR Volatility
 
 ---
 
-### 2. Pairs Trading (ETH/BTC) - Mean Reversion
+## 🚀 Deployment
 
-**High frequency strategy mainly for testing live trading.**
+### Hugging Face Spaces (Backend)
 
-**Logic:**
-```python
-Ratio = ETH_Price / BTC_Price
-Z-Score = (Ratio - Mean_60) / StdDev_60
-
-Entry:  |Z-Score| > 2.0  # Extreme deviation
-Exit:   Z-Score crosses 0 # Mean reversion complete
-```
-
-**Parameters:**
-- `window`: 60 periods (rolling statistics)
-- `threshold`: 2.0 (Z-score entry trigger)
-
-**Use Case:** Market-neutral, low correlation to directional moves
-
----
-
-## 📚 Core Features
-
-### Trading
-- ✅ Live trading simulation with $10,000 starting capital
-- ✅ Walk-forward backtesting (2022-2025 historical data)
-- ✅ Real-time price feeds (Binance Testnet + Yahoo Finance fallback)
-- ✅ 10-second automated execution intervals
-- ✅ LONG/SHORT position tracking with P&L calculation
-- ✅ Per-user isolated portfolios
-
-### AI/ML
-- 🤖 3-state Gaussian HMM for regime classification
-- 📊 SVR (Support Vector Regression) for volatility forecasting
-- 📈 252-day sliding window for honest predictions (no lookahead)
-- 🎯 Z-score statistical analysis for pairs trading
-- 🔍 EMA crossover trend detection
-
-### Platform
-- 🔐 JWT authentication with bcrypt password hashing
-- 📊 Real-time dashboard with portfolio overview
-- 🎨 Modern dark UI (Tailwind CSS + Next.js 15)
-- 📱 Fully responsive (desktop/tablet/mobile)
-- ⚡ Auto-refresh every 30 seconds
-- 📈 Performance charts with Recharts
-
----
-
-## 🛠 Technology Stack
-
-**Backend:** Python 3.8+ • FastAPI • PostgreSQL • SQLModel • scikit-learn • hmmlearn • yfinance • APScheduler  
-**Frontend:** TypeScript 5.0+ • React 18 • Next.js 15 • Tailwind CSS • Recharts  
-**Security:** JWT (python-jose) • bcrypt (passlib)  
-**Data:** Binance Testnet API • Yahoo Finance (free tier)
-
----
-
-## 🚀 Quick Start
+**Current Deployment:** [saadrizvi09/AlgoQuant](https://huggingface.co/spaces/saadrizvi09/AlgoQuant)
 
 ```bash
-# 1. Clone repository
-git clone https://github.com/yourusername/algoquant.git
-cd algoquant
+# Clone HF Space repo
+git clone https://huggingface.co/spaces/YOUR_USERNAME/YOUR_SPACE
+cd YOUR_SPACE
 
-# 2. Backend setup
-cd backend
-python -m venv venv
-venv\Scripts\activate  # Windows | source venv/bin/activate (Linux/Mac)
-pip install -r requirements.txt
-python train_hmm_model.py  # Train HMM (optional but recommended)
+# Copy backend files
+cp -r backend/* .
 
-# 3. Frontend setup  
-cd ../frontend
-npm install
+# Create Dockerfile (already included)
+# Create requirements.txt (already included)
 
-# 4. Run
-# Option A: Run manually (2 terminals)
-# Terminal 1: uvicorn main:app --reload  (from backend/)
-# Terminal 2: npm run dev  (from frontend/)
-
-# Option B: Run all at once (Windows)
-.\dev.bat
+# Push to HF
+git add .
+git commit -m "Deploy backend"
+git push
 ```
 
-**Access:** Frontend at `http://localhost:3000` • Backend API docs at `http://127.0.0.1:8000/docs`
+**Auto-Deploy:** Push to `main` branch triggers rebuild (~2-3 minutes). Also dont forget to use a cronjob to keep the hf space active
 
-**First Steps:** Sign up → Check $10,000 starting balance → Select strategy → Start trading → Monitor performance
+### Vercel (Frontend)
 
----
+```bash
+# Install Vercel CLI
+npm i -g vercel
 
-## 🏗 Architecture
+# Deploy from frontend/
+cd frontend
+vercel
 
-```
-┌─────────────────┐
-│  Next.js UI     │ ← User
-│  (TypeScript)   │
-└────────┬────────┘
-         │ REST API
-         ▼
-┌─────────────────────────────────┐
-│  FastAPI Backend                │
-│  ┌──────────┐  ┌──────────────┐ │
-│  │ Auth API │  │ Trading API  │ │
-│  └────┬─────┘  └──────┬───────┘ │
-│       │                │         │
-│       ▼                ▼         │
-│  ┌────────────────────────────┐ │
-│  │  Strategy Handlers         │ │
-│  │  - HMM-SVR Walk-Forward    │ │
-│  │  - Pairs Trading (Z-Score) │ │
-│  └─────────┬──────────────────┘ │
-│            │                     │
-│            ▼                     │
-│  ┌────────────────────┐         │
-│  │  APScheduler       │         │
-│  │  (10s intervals)   │         │
-│  └─────────┬──────────┘         │
-└────────────┼────────────────────┘
-             │
-             ▼
-┌────────────────────────────────┐
-│  PostgreSQL Database           │
-│  - Users (JWT auth)            │
-│  - Portfolio (balances)        │
-│  - Sessions (active trades)    │
-│  - Trades (execution history)  │
-└────────────┬───────────────────┘
-             │
-             ▼
-┌────────────────────────────────┐
-│  Data Sources (Free APIs)      │
-│  - Binance Testnet (primary)   │
-│  - Yahoo Finance (fallback)    │
-└────────────────────────────────┘
+# Follow prompts to deploy
 ```
 
-**Data Flow:**
-1. User authenticates → JWT token issued
-2. Select strategy + params → Create trading session
-3. APScheduler runs every 10s → Strategy generates signals
-4. Execute trades in simulated exchange → Update portfolio
-5. Real-time price fetching with automatic fallback
+### Railway / Render (Alternative Backend)
 
----
+Both support Dockerfile deployment:
+1. Connect GitHub repo
+2. Select `backend/` directory
+3. Auto-detect Dockerfile
+4. Deploy
+
+<div align="center">
+
+
+[⬆ Back to Top](#-algoquant---ai-powered-crypto-trading-platform)
+
+</div>
