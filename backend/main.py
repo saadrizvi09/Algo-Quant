@@ -16,18 +16,6 @@ from jose import JWTError, jwt
 
 # Import your strategy logic
 from strategy import train_models_and_backtest
-from live_trading import (
-    get_account_balance,
-    get_portfolio_value,
-    get_recent_trades,
-    get_recent_trades_from_db,
-    get_current_price,
-    start_live_trading,
-    stop_live_trading,
-    get_session_status,
-    get_user_sessions,
-    AVAILABLE_STRATEGIES
-)
 
 # Import model manager for HMM-SVR models
 from model_manager import (
@@ -107,7 +95,7 @@ class Token(BaseModel):
     access_token: str
     token_type: str
 
-class LiveTradingRequest(BaseModel):
+class SimulatedTradingRequest(BaseModel):
     symbol: str
     trade_amount: float
     duration: int
@@ -333,89 +321,7 @@ def reload_models(current_user: str = Depends(get_current_user)):
     }
 
 
-# --- LIVE TRADING ROUTES ---
-
-@app.get("/api/live/strategies")
-def list_strategies(current_user: str = Depends(get_current_user)):
-    """Get list of available trading strategies"""
-    return {"strategies": AVAILABLE_STRATEGIES}
-
-
-@app.get("/api/live/portfolio")
-def get_portfolio(current_user: str = Depends(get_current_user)):
-    """Get current portfolio value and holdings"""
-    portfolio = get_portfolio_value()
-    if "error" in portfolio:
-        raise HTTPException(status_code=500, detail=portfolio["error"])
-    return portfolio
-
-
-@app.get("/api/live/balance")
-def get_balance(current_user: str = Depends(get_current_user)):
-    """Get account balances"""
-    balances = get_account_balance()
-    if isinstance(balances, dict) and "error" in balances:
-        raise HTTPException(status_code=500, detail=balances["error"])
-    return {"balances": balances}
-
-
-@app.get("/api/live/trades")
-def get_trades(symbol: Optional[str] = None, limit: int = 20, 
-               current_user: str = Depends(get_current_user)):
-    """Get recent trades from database for current user"""
-    trades = get_recent_trades_from_db(current_user, limit)
-    return {"trades": trades}
-
-
-@app.get("/api/live/price/{symbol}")
-def get_price(symbol: str, current_user: str = Depends(get_current_user)):
-    """Get current price for a symbol"""
-    price = get_current_price(symbol)
-    if price is None:
-        raise HTTPException(status_code=404, detail="Symbol not found")
-    return {"symbol": symbol, "price": price}
-
-
-@app.post("/api/live/start")
-def start_trading(req: LiveTradingRequest, current_user: str = Depends(get_current_user)):
-    """Start a live trading session"""
-    # Convert days to minutes if needed
-    duration_minutes = req.duration
-    if req.duration_unit == "days":
-        duration_minutes = req.duration * 24 * 60
-    
-    result = start_live_trading(
-        user_email=current_user,
-        strategy=req.strategy,
-        symbol=req.symbol,
-        trade_amount=req.trade_amount,
-        duration_minutes=duration_minutes,
-        duration_unit=req.duration_unit,
-        short_window=req.short_window,
-        long_window=req.long_window,
-        interval=req.interval
-    )
-    if "error" in result:
-        raise HTTPException(status_code=400, detail=result["error"])
-    return result
-
-
-@app.post("/api/live/stop/{session_id}")
-def stop_trading(session_id: str, current_user: str = Depends(get_current_user)):
-    """Stop an active trading session"""
-    result = stop_live_trading(session_id)
-    if "error" in result:
-        raise HTTPException(status_code=404, detail=result["error"])
-    return result
-
-
-@app.get("/api/live/session/{session_id}")
-def get_session(session_id: str, current_user: str = Depends(get_current_user)):
-    """Get status of a trading session"""
-    status = get_session_status(session_id)
-    if "error" in status:
-        raise HTTPException(status_code=404, detail=status["error"])
-    return status
+# --- SIMULATED TRADING ROUTES ---
 
 @app.get("/api/simulated/trades")
 def get_simulated_trades(
@@ -433,12 +339,6 @@ def get_simulated_sessions(current_user: str = Depends(get_current_user)):
     from simulated_endpoints import get_simulated_sessions_endpoint
     return get_simulated_sessions_endpoint(current_user)
 
-@app.get("/api/live/sessions")
-def get_sessions(current_user: str = Depends(get_current_user)):
-    """Get all trading sessions for the current user"""
-    sessions = get_user_sessions(current_user)
-    return {"sessions": sessions}
-
 
 @app.get("/api/simulated/portfolio")
 def get_simulated_portfolio(current_user: str = Depends(get_current_user)):
@@ -454,7 +354,7 @@ def get_simulated_portfolio(current_user: str = Depends(get_current_user)):
 
 
 @app.post("/api/simulated/start")
-def start_simulated_session(req: LiveTradingRequest, current_user: str = Depends(get_current_user)):
+def start_simulated_session(req: SimulatedTradingRequest, current_user: str = Depends(get_current_user)):
     """Start HMM-SVR trading bot session"""
     from simulated_trading import start_simulated_trading
     from database import initialize_portfolio_if_empty
