@@ -135,25 +135,27 @@ class SimulatedTradingSession:
                 return
             
             # Get signal from HMM-SVR model
-            signal = self.handler.get_signal(price)
+            signal, position_size = self.handler.get_signal(price)
             
             # Log check
             elapsed_hours = (datetime.now() - self.start_time).total_seconds() / 3600
             position_str = self.position or 'NONE'
-            print(f"[HMM-SVR Bot] ⏰ Check | {elapsed_hours:.1f}h | ${price:,.2f} | {signal} | Pos: {position_str}")
+            print(f"[HMM-SVR Bot] ⏰ Check | {elapsed_hours:.1f}h | ${price:,.2f} | {signal} {position_size}x | Pos: {position_str}")
             
             # Execute based on signal (long-only strategy)
             if signal == "BUY" and self.position is None:
-                self._open_long_position(price)
+                self._open_long_position(price, position_size)
             elif signal == "SELL" and self.position == "LONG":
                 self._close_position(price)
             
         except Exception as e:
             print(f"[HMM-SVR Bot] ❌ Error: {e}")
     
-    def _open_long_position(self, price: float):
-        """Open a LONG position (BUY)"""
-        quantity = self.trade_amount / price
+    def _open_long_position(self, price: float, position_size: float = 1.0):
+        """Open a LONG position (BUY) with leverage multiplier"""
+        # Apply position size multiplier (0x, 1x, or 3x)
+        leveraged_amount = self.trade_amount * position_size
+        quantity = leveraged_amount / price
         
         success, trade_info = simulated_exchange.execute_buy(
             symbol=self.base_asset,
@@ -166,7 +168,8 @@ class SimulatedTradingSession:
             self.position = "LONG"
             self.entry_price = price
             self._save_trade_to_db(trade_info)
-            print(f"[HMM-SVR Bot] 📈 LONG opened: {quantity:.8f} {self.base_asset} @ ${price:,.2f}")
+            leverage_str = f" ({position_size}x)" if position_size != 1.0 else ""
+            print(f"[HMM-SVR Bot] 📈 LONG opened: {quantity:.8f} {self.base_asset} @ ${price:,.2f}{leverage_str}")
         else:
             print(f"[HMM-SVR Bot] ❌ Failed to open position")
     

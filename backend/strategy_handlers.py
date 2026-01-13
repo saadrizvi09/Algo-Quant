@@ -72,21 +72,21 @@ class HMMSVRStrategyHandler:
         except Exception as e:
             print(f"[HMM-SVR] ⚠️ Error loading historical data: {e}")
     
-    def get_signal(self, price: float) -> str:
+    def get_signal(self, price: float) -> tuple[str, float]:
         """
         Generate trading signal using HMM-SVR model.
         
         Returns:
-            "BUY" - open/increase position
-            "SELL" - close position
-            "HOLD" - maintain current state
+            tuple: (signal, position_size)
+                - signal: "BUY", "SELL", or "HOLD"
+                - position_size: 0.0 (no position), 1.0 (normal), 3.0 (high conviction)
         """
         # Add current price to buffer
         self.price_buffer.append(float(price))
         
         # Need at least 100 data points
         if len(self.price_buffer) < 100:
-            return "HOLD"
+            return "HOLD", 0.0
         
         try:
             # Convert buffer to DataFrame for model
@@ -104,7 +104,7 @@ class HMMSVRStrategyHandler:
             
             if result is None or 'error' in result:
                 print(f"[HMM-SVR] Error: {result}")
-                return "HOLD"
+                return "HOLD", self.last_position_size
             
             # Extract results
             target_position = result.get('target_position_size', 0.0)
@@ -123,8 +123,8 @@ class HMMSVRStrategyHandler:
                 signal = "HOLD"
             
             self.last_position_size = target_position
-            return signal
+            return signal, target_position
             
         except Exception as e:
             print(f"[HMM-SVR] Error generating signal: {e}")
-            return "HOLD"
+            return "HOLD", self.last_position_size
