@@ -18,6 +18,11 @@ import {
   DollarSign,
   Timer,
   Bot,
+  Zap,
+  Target,
+  ShieldCheck,
+  ShieldAlert,
+  BarChart3,
 } from "lucide-react";
 import Navbar from "@/components/navbar";
 
@@ -51,11 +56,46 @@ interface Session {
   remaining_minutes: number;
 }
 
+interface SignalData {
+  success: boolean;
+  error?: string;
+  symbol?: string;
+  current_price?: number;
+  signal?: {
+    action: string;
+    action_color: string;
+    action_description: string;
+    ema_trend: string;
+    position_multiplier: number;
+    target_position: number;
+    signal_stability?: number;  // NEW: 0-1, how stable is the signal
+    ema_gap_percent?: number;   // NEW: % gap between EMAs (trend strength)
+  };
+  regime?: {
+    state: number;
+    label: string;
+    description: string;
+  };
+  risk?: {
+    ratio: number;
+    level: string;
+    predicted_volatility: number;
+  };
+  technicals?: {
+    ema_short: number;
+    ema_long: number;
+  };
+  reasoning?: string;
+  timestamp?: string;
+}
+
 const CRYPTO_PAIRS = [
   { symbol: "BTCUSDT", name: "Bitcoin", logo: "₿", color: "#F7931A" },
   { symbol: "ETHUSDT", name: "Ethereum", logo: "Ξ", color: "#627EEA" },
   { symbol: "BNBUSDT", name: "BNB", logo: "⬡", color: "#F3BA2F" },
   { symbol: "SOLUSDT", name: "Solana", logo: "◎", color: "#14F195" },
+  { symbol: "LINKUSDT", name: "Chainlink", logo: "⬢", color: "#2A5ADA" },
+  { symbol: "DOGEUSDT", name: "Dogecoin", logo: "Ð", color: "#C2A633" },
 ];
 
 export default function LiveTradingPage() {
@@ -78,6 +118,11 @@ export default function LiveTradingPage() {
   // UI states
   const [showSymbolDropdown, setShowSymbolDropdown] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Signal indicator states
+  const [signalData, setSignalData] = useState<SignalData | null>(null);
+  const [signalLoading, setSignalLoading] = useState(false);
+  const [showSignalModal, setShowSignalModal] = useState(false);
 
   const getAuthHeaders = useCallback(() => {
     const token = localStorage.getItem("token");
@@ -213,6 +258,45 @@ export default function LiveTradingPage() {
 
   const selectedSymbolData = CRYPTO_PAIRS.find((p) => p.symbol === selectedSymbol);
 
+  // Fetch instant signal for selected symbol
+  const fetchSignal = async () => {
+    setSignalLoading(true);
+    setSignalData(null);
+    setShowSignalModal(true);
+
+    try {
+      const res = await fetch(`${API_URL}/api/models/signal/${selectedSymbol}`, {
+        headers: getAuthHeaders(),
+      });
+
+      const data = await res.json();
+      setSignalData(data);
+    } catch (err) {
+      setSignalData({
+        success: false,
+        error: "Failed to fetch signal. Please try again.",
+      });
+    } finally {
+      setSignalLoading(false);
+    }
+  };
+
+  // Get color for action
+  const getActionColor = (color: string) => {
+    switch (color) {
+      case "green":
+        return "text-emerald-400 bg-emerald-500/20 border-emerald-500/30";
+      case "red":
+        return "text-red-400 bg-red-500/20 border-red-500/30";
+      case "yellow":
+        return "text-yellow-400 bg-yellow-500/20 border-yellow-500/30";
+      case "cyan":
+        return "text-cyan-400 bg-cyan-500/20 border-cyan-500/30";
+      default:
+        return "text-slate-400 bg-slate-500/20 border-slate-500/30";
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#0B0E14] text-slate-200">
       <Navbar />
@@ -304,6 +388,25 @@ export default function LiveTradingPage() {
                   Uses Hidden Markov Models for regime detection and Support Vector Regression for volatility prediction. Long-only positions with dynamic sizing (0x, 1x, 3x).
                 </div>
               </div>
+
+              {/* Check Signal Button */}
+              <button
+                onClick={fetchSignal}
+                disabled={signalLoading}
+                className="w-full px-4 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-semibold rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-purple-500/20 disabled:opacity-50"
+              >
+                {signalLoading ? (
+                  <>
+                    <RefreshCw className="w-5 h-5 animate-spin" />
+                    Analyzing Market...
+                  </>
+                ) : (
+                  <>
+                    <Zap className="w-5 h-5" />
+                    Check Signal for {selectedSymbol}
+                  </>
+                )}
+              </button>
 
               {/* Symbol Selector */}
               <div>
@@ -629,6 +732,230 @@ export default function LiveTradingPage() {
           )}
         </div>
       </main>
+
+      {/* Signal Indicator Modal */}
+      {showSignalModal && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[#151B26] border border-white/10 rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="p-6 border-b border-white/10 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-purple-500/20 rounded-lg">
+                  <BarChart3 className="w-6 h-6 text-purple-400" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-white">Signal Analysis</h3>
+                  <p className="text-xs text-slate-400">{selectedSymbol}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowSignalModal(false)}
+                className="p-2 hover:bg-white/10 rounded-lg transition"
+              >
+                <Activity className="w-5 h-5 text-slate-400" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6">
+              {signalLoading ? (
+                <div className="text-center py-8">
+                  <RefreshCw className="w-12 h-12 text-purple-400 animate-spin mx-auto mb-4" />
+                  <p className="text-slate-400">Analyzing market conditions...</p>
+                  <p className="text-xs text-slate-500 mt-1">Fetching data and running HMM-SVR model</p>
+                  <p className="text-xs text-cyan-400 mt-2">⏳ Auto-training model if needed (may take 30-60s)</p>
+                </div>
+              ) : signalData?.success ? (
+                <div className="space-y-5">
+                  {/* Main Signal Action */}
+                  <div className={`p-5 rounded-xl border ${getActionColor(signalData.signal?.action_color || "")}`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs uppercase font-semibold opacity-70">Recommended Action</span>
+                      {signalData.signal?.position_multiplier === 3 && (
+                        <span className="px-2 py-0.5 bg-emerald-500/30 text-emerald-400 text-xs rounded-full font-semibold">
+                          3x LEVERAGE
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-2xl font-bold">{signalData.signal?.action}</div>
+                    <p className="text-sm mt-1 opacity-80">{signalData.signal?.action_description}</p>
+                  </div>
+
+                  {/* Current Price */}
+                  <div className="p-4 bg-[#0B0E14] rounded-xl border border-white/5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400 text-sm">Current Price</span>
+                      <span className="text-xl font-bold text-white">
+                        ${signalData.current_price?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Market Regime */}
+                  <div className="p-4 bg-[#0B0E14] rounded-xl border border-white/5">
+                    <div className="flex items-center gap-2 mb-3">
+                      {signalData.regime?.label === "Safe" ? (
+                        <ShieldCheck className="w-5 h-5 text-emerald-400" />
+                      ) : signalData.regime?.label === "Crash" ? (
+                        <ShieldAlert className="w-5 h-5 text-red-400" />
+                      ) : (
+                        <Activity className="w-5 h-5 text-yellow-400" />
+                      )}
+                      <span className="text-sm font-semibold text-white">Market Regime</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span
+                        className={`px-3 py-1 rounded-full text-sm font-semibold ${
+                          signalData.regime?.label === "Safe"
+                            ? "bg-emerald-500/20 text-emerald-400"
+                            : signalData.regime?.label === "Crash"
+                            ? "bg-red-500/20 text-red-400"
+                            : "bg-yellow-500/20 text-yellow-400"
+                        }`}
+                      >
+                        {signalData.regime?.label}
+                      </span>
+                      <span className="text-xs text-slate-400">{signalData.regime?.description}</span>
+                    </div>
+                  </div>
+
+                  {/* Risk & Trend */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="p-4 bg-[#0B0E14] rounded-xl border border-white/5">
+                      <div className="text-xs text-slate-400 mb-1">Risk Level</div>
+                      <div
+                        className={`text-lg font-semibold ${
+                          signalData.risk?.level === "Low"
+                            ? "text-emerald-400"
+                            : signalData.risk?.level === "High"
+                            ? "text-red-400"
+                            : "text-yellow-400"
+                        }`}
+                      >
+                        {signalData.risk?.level}
+                      </div>
+                      <div className="text-xs text-slate-500">Ratio: {signalData.risk?.ratio.toFixed(2)}</div>
+                    </div>
+                    <div className="p-4 bg-[#0B0E14] rounded-xl border border-white/5">
+                      <div className="text-xs text-slate-400 mb-1">EMA Trend</div>
+                      <div
+                        className={`text-lg font-semibold flex items-center gap-1 ${
+                          signalData.signal?.ema_trend === "Bullish" ? "text-emerald-400" : "text-red-400"
+                        }`}
+                      >
+                        {signalData.signal?.ema_trend === "Bullish" ? (
+                          <TrendingUp className="w-5 h-5" />
+                        ) : (
+                          <TrendingDown className="w-5 h-5" />
+                        )}
+                        {signalData.signal?.ema_trend}
+                      </div>
+                      <div className="text-xs text-slate-500">
+                        Gap: {signalData.signal?.ema_gap_percent?.toFixed(2) || "—"}%
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Signal Stability & Trend Strength - NEW */}
+                  {(signalData.signal?.signal_stability !== undefined || signalData.signal?.ema_gap_percent !== undefined) && (
+                    <div className="grid grid-cols-2 gap-3">
+                      {signalData.signal?.signal_stability !== undefined && (
+                        <div className="p-4 bg-[#0B0E14] rounded-xl border border-white/5">
+                          <div className="text-xs text-slate-400 mb-1">Signal Stability</div>
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 bg-slate-700 rounded-full h-2">
+                              <div
+                                className={`h-2 rounded-full transition-all ${
+                                  signalData.signal.signal_stability > 0.7
+                                    ? "bg-emerald-400"
+                                    : signalData.signal.signal_stability > 0.4
+                                    ? "bg-yellow-400"
+                                    : "bg-red-400"
+                                }`}
+                                style={{ width: `${signalData.signal.signal_stability * 100}%` }}
+                              ></div>
+                            </div>
+                            <span className="text-sm font-medium text-slate-300">
+                              {(signalData.signal.signal_stability * 100).toFixed(0)}%
+                            </span>
+                          </div>
+                          <div className="text-xs text-slate-500 mt-1">
+                            {signalData.signal.signal_stability > 0.7
+                              ? "Strong"
+                              : signalData.signal.signal_stability > 0.4
+                              ? "Moderate"
+                              : "Weak"}
+                          </div>
+                        </div>
+                      )}
+                      {signalData.signal?.ema_gap_percent !== undefined && (
+                        <div className="p-4 bg-[#0B0E14] rounded-xl border border-white/5">
+                          <div className="text-xs text-slate-400 mb-1">Trend Strength</div>
+                          <div
+                            className={`text-lg font-semibold ${
+                              Math.abs(signalData.signal.ema_gap_percent) > 2
+                                ? "text-emerald-400"
+                                : Math.abs(signalData.signal.ema_gap_percent) > 0.5
+                                ? "text-yellow-400"
+                                : "text-red-400"
+                            }`}
+                          >
+                            {Math.abs(signalData.signal.ema_gap_percent).toFixed(2)}%
+                          </div>
+                          <div className="text-xs text-slate-500">
+                            {Math.abs(signalData.signal.ema_gap_percent) > 2
+                              ? "Strong Trend"
+                              : Math.abs(signalData.signal.ema_gap_percent) > 0.5
+                              ? "Moderate"
+                              : "Weak Trend"}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Reasoning */}
+                  {signalData.reasoning && (
+                    <div className="p-4 bg-slate-800/50 rounded-xl border border-white/5">
+                      <div className="text-xs text-slate-400 mb-2 font-semibold">Analysis Reasoning</div>
+                      <p className="text-sm text-slate-300 leading-relaxed">{signalData.reasoning}</p>
+                    </div>
+                  )}
+
+                  {/* Timestamp */}
+                  <div className="text-center text-xs text-slate-500">
+                    Analyzed at {signalData.timestamp ? new Date(signalData.timestamp).toLocaleString() : "—"}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
+                  <p className="text-red-400 font-semibold mb-2">Unable to Generate Signal</p>
+                  <p className="text-sm text-slate-400">{signalData?.error}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-white/10 flex gap-3">
+              <button
+                onClick={() => setShowSignalModal(false)}
+                className="flex-1 px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-slate-300 hover:bg-white/10 transition"
+              >
+                Close
+              </button>
+              <button
+                onClick={fetchSignal}
+                disabled={signalLoading}
+                className="flex-1 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-semibold rounded-lg transition disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                <RefreshCw className={`w-4 h-4 ${signalLoading ? "animate-spin" : ""}`} />
+                Refresh
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

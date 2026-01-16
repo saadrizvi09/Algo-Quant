@@ -207,29 +207,43 @@ def train_svr_model(train_df: pd.DataFrame) -> Tuple[SVR, StandardScaler]:
     return model, scaler
 
 
-def train_and_save_model(symbol: str, n_states: int = 3) -> Dict[str, Any]:
+def train_and_save_model(symbol: str, n_states: int = 3, binance_symbol: str = None, save_as: str = None) -> Dict[str, Any]:
     """
     Train HMM-SVR models for a symbol and save to disk.
     Returns training results and metadata.
+    
+    Args:
+        symbol: Base symbol (e.g., 'BTC') or Yahoo Finance format (e.g., 'BTC-USD')
+        n_states: Number of HMM states (default 3)
+        binance_symbol: Full Binance symbol (e.g., 'BTCUSDT') for fallback, optional
+        save_as: Base symbol to use for saving model (e.g., 'BTC'). If not provided, 
+                 will auto-detect from symbol by stripping USDT/-USD suffixes
     """
+    # Auto-detect base symbol for saving if not provided
+    # Handles: BTCUSDT -> BTC, BTC-USD -> BTC, BTC -> BTC
+    if save_as is None:
+        save_as = symbol.replace('USDT', '').replace('-USD', '')
+    
     print(f"\n{'='*60}")
-    print(f"[ModelManager] Training HMM-SVR model for {symbol}")
+    print(f"[ModelManager] Training HMM-SVR model for {save_as}")
     print(f"{'='*60}")
     
     # Try Yahoo Finance first, then Binance
     df = fetch_training_data_yfinance(symbol)
     if df is None or len(df) < 250:
         print("[ModelManager] Falling back to Binance data...")
-        df = fetch_training_data_binance(symbol)
+        # Use full Binance symbol if provided, otherwise reconstruct it
+        fallback_symbol = binance_symbol if binance_symbol else f"{save_as}USDT"
+        df = fetch_training_data_binance(fallback_symbol)
     
     if df is None or len(df) < 250:
-        return {"error": f"Insufficient data for {symbol}. Need at least 250 days, got {len(df) if df is not None else 0}."}
+        return {"error": f"Insufficient data for {save_as}. Need at least 250 days, got {len(df) if df is not None else 0}."}
     
     # Engineer features
     df = engineer_features(df)
     
     if len(df) < 200:
-        return {"error": f"Insufficient data after feature engineering for {symbol}. Got {len(df)} days."}
+        return {"error": f"Insufficient data after feature engineering for {save_as}. Got {len(df)} days."}
     
     print(f"[ModelManager] Training on {len(df)} days of data...")
     
@@ -249,7 +263,7 @@ def train_and_save_model(symbol: str, n_states: int = 3) -> Dict[str, Any]:
     print("[ModelManager] Training SVR model...")
     svr_model, svr_scaler = train_svr_model(df)
     
-    # Prepare model data for saving
+    # Prepare model data for saving (use save_as for consistent base symbol)
     model_data = {
         'hmm_model': hmm_model,
         'svr_model': svr_model,
@@ -259,15 +273,15 @@ def train_and_save_model(symbol: str, n_states: int = 3) -> Dict[str, Any]:
         'n_states': n_states,
         'train_days': len(df),
         'trained_at': datetime.now().isoformat(),
-        'symbol': symbol
+        'symbol': save_as
     }
     
-    # Save to disk
-    model_path = get_model_path(symbol)
+    # Save to disk using base symbol (e.g., BTC not BTCUSDT or BTC-USD)
+    model_path = get_model_path(save_as)
     joblib.dump(model_data, model_path)
     
-    # Update cache
-    _model_cache[symbol.upper()] = model_data
+    # Update cache with base symbol
+    _model_cache[save_as.upper()] = model_data
     
     print(f"[ModelManager] ✅ Model saved to {model_path}")
     print(f"[ModelManager] States: 0=Low Vol (Safe), {n_states-1}=High Vol (Crash)")
@@ -275,7 +289,7 @@ def train_and_save_model(symbol: str, n_states: int = 3) -> Dict[str, Any]:
     
     return {
         "success": True,
-        "symbol": symbol,
+        "symbol": save_as,
         "trained_at": model_data['trained_at'],
         "train_days": len(df),
         "avg_train_vol": avg_train_vol,
@@ -408,13 +422,15 @@ def calculate_signal_and_position(
     symbol: str,
     recent_data: pd.DataFrame,
     short_window: int = 12,
-    long_window: int = 26
+    long_window: int = 26,
+    lookback_window: int = 252
 ) -> Optional[Dict[str, Any]]:
     """
-   
+    Calculate trading signal and position sizing with walk-forward logic.
+    Enhanced to match backtest methodology more closely.
     
     Returns:
-        Dict with signal, target_position_size, regime info, etc.
+        Dict with signal, target_position_size, regime info, stability metrics, etc.
     """
     # Get regime and volatility prediction
     prediction = predict_regime_and_volatility(symbol, recent_data)
@@ -424,34 +440,83 @@ def calculate_signal_and_position(
     model_data = load_model(symbol)
     n_states = model_data['n_states']
     
-    # Calculate EMAs on recent data
+    # Use sliding window for EMA calculation (matches backtest)
     df = recent_data.copy()
-    df['EMA_Short'] = df['Close'].ewm(span=short_window).mean()
-    df['EMA_Long'] = df['Close'].ewm(span=long_window).mean()
+    lookback_data = df.iloc[-lookback_window:] if len(df) > lookback_window else df
     
-    latest = df.iloc[-1]
+    # Calculate EMAs on sliding window only (not full history)
+    lookback_data_copy = lookback_data.copy()
+    lookback_data_copy['EMA_Short'] = lookback_data_copy['Close'].ewm(span=short_window).mean()
+    lookback_data_copy['EMA_Long'] = lookback_data_copy['Close'].ewm(span=long_window).mean()
+    
+    latest = lookback_data_copy.iloc[-1]
     
     # EMA Crossover Signal (1 = bullish, 0 = bearish)
     ema_signal = 1 if latest['EMA_Short'] > latest['EMA_Long'] else 0
+    
+    # Calculate signal stability (how long has signal been consistent?)
+    if len(lookback_data_copy) >= 5:
+        recent_5_days = lookback_data_copy.tail(5)
+        recent_signals = (recent_5_days['EMA_Short'] > recent_5_days['EMA_Long']).astype(int)
+        signal_stability = recent_signals.sum() / 5.0  # 1.0 = all bullish, 0.0 = all bearish
+    else:
+        signal_stability = 0.5
     
     # Determine position size based on regime and risk
     regime = prediction['regime']
     risk_ratio = prediction['risk_ratio']
     
-    # Default position size
-    position_size = 1.0
+    # Enhanced 5-level leverage logic:
+    # - 0x: Crash regime OR bearish trend
+    # - 0.5x: High risk in normal regime (defensive)
+    # - 1x: Standard bullish position
+    # - 2x: Safe regime with moderate risk OR normal regime with low risk
+    # - 3x: Safe regime + very low risk (sniper mode)
     
-    # Boost: 3x in safe regime with low risk
-    if regime == 0 and risk_ratio < 0.5:
-        position_size = 3.0
+    position_size = 1.0  # Default: Standard position
     
-    # Cut: 0x in crash regime (highest volatility state)
+    # Debug logging to verify conditions
+    print(f"[Leverage Logic] {symbol}: Regime={regime}/{n_states-1}, Risk={risk_ratio:.3f}, EMA_Signal={ema_signal}")
+    
+    # CRASH PROTOCOL: Override to 0x if crash regime detected
     if regime == n_states - 1:
         position_size = 0.0
+        print(f"[Leverage Logic] {symbol}: CRASH REGIME → 0x position")
+    
+    # SAFE REGIME (Lowest volatility)
+    elif regime == 0:
+        if risk_ratio < 0.5:
+            position_size = 3.0  # 🚀 SNIPER MODE
+            print(f"[Leverage Logic] {symbol}: SNIPER MODE (Safe + Very Low Risk) → 3x")
+        elif risk_ratio < 0.85:
+            position_size = 2.0  # 📈 Strong position
+            print(f"[Leverage Logic] {symbol}: Safe + Moderate Risk → 2x")
+        else:
+            position_size = 1.0  # ✅ Standard
+            print(f"[Leverage Logic] {symbol}: Safe + High Risk → 1x")
+    
+    # NORMAL REGIME (Middle volatility)
+    elif regime == 1:
+        if risk_ratio < 0.5:
+            position_size = 2.0  # 📈 Favorable
+            print(f"[Leverage Logic] {symbol}: Normal + Low Risk → 2x")
+        elif risk_ratio > 1.2:
+            position_size = 0.5  # ⚠️ Defensive
+            print(f"[Leverage Logic] {symbol}: Normal + High Risk → 0.5x (defensive)")
+        else:
+            position_size = 1.0  # ✅ Standard
+            print(f"[Leverage Logic] {symbol}: Normal + Moderate Risk → 1x")
+    
+    # Otherwise: Standard 1x position (if bullish) or 0x (if bearish)
     
     # Target position = Signal * Position Size
     # Signal of 0 means no position regardless of size
     target_position = ema_signal * position_size
+    
+    # Enhanced reasoning with stability context
+    reasoning = _get_signal_reasoning(
+        ema_signal, regime, risk_ratio, position_size, n_states, signal_stability
+    )
     
     return {
         'ema_signal': ema_signal,
@@ -464,44 +529,57 @@ def calculate_signal_and_position(
         'position_size_multiplier': position_size,
         'target_position': target_position,  # 0, 1, or 3
         'close_price': float(latest['Close']),
-        'reasoning': _get_signal_reasoning(ema_signal, regime, risk_ratio, position_size, n_states)
+        'signal_stability': signal_stability,  # NEW: How stable is the signal?
+        'reasoning': reasoning,
+        'ema_gap_percent': ((latest['EMA_Short'] - latest['EMA_Long']) / latest['EMA_Long'] * 100)  # NEW: Strength of trend
     }
 
 
 def _get_signal_reasoning(ema_signal: int, regime: int, risk_ratio: float, 
-                          position_size: float, n_states: int) -> str:
-    """Generate human-readable reasoning for the signal."""
+                          position_size: float, n_states: int, signal_stability: float = 0.5) -> str:
+    """Generate human-readable reasoning for the signal with stability context."""
     reasons = []
     
-    # EMA reasoning
+    # EMA reasoning with stability
     if ema_signal == 1:
-        reasons.append("EMA crossover bullish (short > long)")
+        stability_text = "STRONG" if signal_stability > 0.8 else ("WEAK" if signal_stability < 0.4 else "MODERATE")
+        reasons.append(f"✅ Trend UP (12-EMA > 26-EMA) [{stability_text}]")
     else:
-        reasons.append("EMA crossover bearish (short < long)")
+        stability_text = "STRONG" if signal_stability < 0.2 else ("WEAK" if signal_stability > 0.6 else "MODERATE")
+        reasons.append(f"📉 Trend DOWN (12-EMA < 26-EMA) [{stability_text}]")
     
     # Regime reasoning
     if regime == 0:
-        reasons.append("Safe regime detected (low volatility)")
+        reasons.append("🛡️ Safe Regime (Low Volatility)")
     elif regime == n_states - 1:
-        reasons.append("⚠️ Crash regime detected (high volatility)")
+        reasons.append("🚨 CRASH REGIME (High Volatility)")
     else:
-        reasons.append(f"Normal regime ({regime})")
+        reasons.append(f"⚖️ Normal Regime (Neutral Volatility)")
     
     # Risk reasoning
     if risk_ratio < 0.5:
-        reasons.append(f"Low risk (ratio: {risk_ratio:.2f})")
+        reasons.append(f"🌤️ Future Looks Calm (risk: {risk_ratio:.2f})")
     elif risk_ratio > 1.5:
-        reasons.append(f"High risk (ratio: {risk_ratio:.2f})")
+        reasons.append(f"⚠️ High Future Risk (risk: {risk_ratio:.2f})")
     else:
-        reasons.append(f"Moderate risk (ratio: {risk_ratio:.2f})")
+        reasons.append(f"📊 Normal Risk (ratio: {risk_ratio:.2f})")
     
-    # Position reasoning
+    # Position reasoning with enhanced logic
     if position_size == 3.0:
-        reasons.append("→ Leveraging 3x (safe + low risk)")
+        reasons.append("→ 🚀 MAX LEVERAGE 3x (Sniper Mode!)")
+    elif position_size == 2.0:
+        reasons.append("→ 📈 MEDIUM LEVERAGE 2x (Favorable)")
+    elif position_size == 1.0:
+        reasons.append("→ ✅ Standard 1x Position")
+    elif position_size == 0.5:
+        reasons.append("→ ⚠️ REDUCED 0.5x (Defensive)")
     elif position_size == 0.0:
-        reasons.append("→ Position cut to 0 (crash regime)")
+        if regime == n_states - 1:
+            reasons.append("→ 🛑 CASH (Crash Protocol Override)")
+        else:
+            reasons.append("→ 🛑 CASH (Bearish Trend)")
     else:
-        reasons.append("→ Standard 1x position")
+        reasons.append(f"→ Position: {position_size:.1f}x")
     
     return " | ".join(reasons)
 

@@ -321,6 +321,159 @@ def reload_models(current_user: str = Depends(get_current_user)):
     }
 
 
+@app.get("/api/models/signal/{symbol}")
+def get_instant_signal(symbol: str, current_user: str = Depends(get_current_user)):
+    """
+    Get instant trading signal for a symbol using trained HMM-SVR model.
+    Auto-trains model if it doesn't exist.
+    Returns current regime, recommended position size, and trading signal.
+    
+    Example: GET /api/models/signal/BTCUSDT
+    """
+    from model_manager import is_model_trained, load_model, calculate_signal_and_position, train_and_save_model
+    import yfinance as yf
+    from datetime import datetime, timedelta
+    import pandas as pd
+    
+    symbol = symbol.upper()
+    base_symbol = symbol.replace('USDT', '')
+    yahoo_symbol = f"{base_symbol}-USD"  # Convert to Yahoo Finance format
+    
+    # Check if model exists, train if not (same as bot auto-training)
+    if not is_model_trained(base_symbol) and not is_model_trained(symbol):
+        print(f"[SignalAPI] No model found for {base_symbol}, training now...")
+        
+        try:
+            # Train model with both Yahoo symbol and Binance symbol for fallback
+            # Save model with base symbol name (BNB) not Yahoo format (BNB-USD)
+            train_result = train_and_save_model(
+                symbol=yahoo_symbol, 
+                n_states=3, 
+                binance_symbol=symbol,
+                save_as=base_symbol
+            )
+            
+            if train_result and 'error' not in train_result:
+                print(f"[SignalAPI] ✅ Model trained for {base_symbol} with {train_result.get('train_days', 0)} days")
+            else:
+                return {
+                    "success": False,
+                    "error": f"Failed to train model: {train_result.get('error', 'Unknown error')}",
+                    "action_required": "Insufficient data to train model"
+                }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Model training failed: {str(e)}"
+            }
+    
+    # Fetch recent price data (450 days for proper feature calculation)
+    try:
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=450)
+        
+        df = yf.download(yahoo_symbol, start=start_date, end=end_date, progress=False, auto_adjust=True)
+        
+        if df.empty:
+            return {
+                "success": False,
+                "error": f"Could not fetch price data for {yahoo_symbol}"
+            }
+        
+        # Handle MultiIndex columns
+        if isinstance(df.columns, pd.MultiIndex):
+            if 'Close' in df.columns.get_level_values(0):
+                df.columns = df.columns.get_level_values(0)
+            else:
+                df.columns = df.columns.get_level_values(1)
+        
+        # Get signal from model (use base_symbol for model lookup, yahoo_symbol for data)
+        result = calculate_signal_and_position(
+            symbol=base_symbol,
+            recent_data=df,
+            short_window=12,
+            long_window=26
+        )
+        
+        if result is None or 'error' in result:
+            return {
+                "success": False,
+                "error": result.get('error', 'Unknown error') if result else "Failed to calculate signal"
+            }
+        
+        # Determine human-readable signal
+        ema_signal = result.get('ema_signal', 0)
+        target_position = result.get('target_position', 0)
+        position_multiplier = result.get('position_size_multiplier', 1.0)
+        regime = result.get('regime', 1)
+        regime_label = result.get('regime_label', 'Normal')
+        
+        # Generate action recommendation (5-level system: 0x, 0.5x, 1x, 2x, 3x)
+        if target_position == 0:
+            if regime_label == 'Crash':
+                action = "STAY OUT"
+                action_color = "red"
+                action_description = "🚨 Crash Protocol: Safety override activated"
+            else:
+                action = "WAIT"
+                action_color = "yellow"
+                action_description = "Bearish trend - waiting for reversal"
+        elif target_position == 3:
+            action = "STRONG BUY (3x)"
+            action_color = "green"
+            action_description = "🚀 Max Leverage: Safe regime + very low risk!"
+        elif target_position == 2:
+            action = "BUY (2x)"
+            action_color = "cyan"
+            action_description = "📈 Medium Leverage: Favorable conditions"
+        elif target_position == 0.5:
+            action = "CAUTIOUS BUY (0.5x)"
+            action_color = "orange"
+            action_description = "⚠️ Defensive: High risk detected"
+        else:
+            action = "BUY (1x)"
+            action_color = "blue"
+            action_description = "✅ Standard bullish position"
+        
+        return {
+            "success": True,
+            "symbol": symbol,
+            "current_price": result.get('close_price', 0),
+            "signal": {
+                "action": action,
+                "action_color": action_color,
+                "action_description": action_description,
+                "ema_trend": "Bullish" if ema_signal == 1 else "Bearish",
+                "position_multiplier": position_multiplier,
+                "target_position": target_position,
+                "signal_stability": result.get('signal_stability', 0.5),  # NEW
+                "ema_gap_percent": result.get('ema_gap_percent', 0)  # NEW: Trend strength
+            },
+            "regime": {
+                "state": regime,
+                "label": regime_label,
+                "description": "Low volatility" if regime == 0 else ("High volatility - danger" if regime_label == 'Crash' else "Normal volatility")
+            },
+            "risk": {
+                "ratio": result.get('risk_ratio', 1.0),
+                "level": "Low" if result.get('risk_ratio', 1.0) < 0.5 else ("High" if result.get('risk_ratio', 1.0) > 1.5 else "Moderate"),
+                "predicted_volatility": result.get('predicted_vol', 0)
+            },
+            "technicals": {
+                "ema_short": result.get('ema_short', 0),
+                "ema_long": result.get('ema_long', 0)
+            },
+            "reasoning": result.get('reasoning', ''),
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Error calculating signal: {str(e)}"
+        }
+
+
 # --- SIMULATED TRADING ROUTES ---
 
 @app.get("/api/simulated/trades")
