@@ -17,8 +17,15 @@ const nextConfig: NextConfig = {
   ],
   async rewrites() {
     return [
+      // 1. "Double API" Fix: If URL has 'proxy/api', send just the end path to AWS
+      // Maps /api/proxy/api/login -> http://aws.../api/login (Wait, your backend HAS /api prefix!)
       {
-        source: '/api/:path*',
+        source: '/api/proxy/api/:path*',
+        destination: 'http://algoquant-env.eba-y7ktk2xn.eu-north-1.elasticbeanstalk.com/api/:path*',
+      },
+      // 2. Standard Proxy: Handles /api/proxy/login
+      {
+        source: '/api/proxy/:path*',
         destination: 'http://algoquant-env.eba-y7ktk2xn.eu-north-1.elasticbeanstalk.com/api/:path*',
       },
     ];
