@@ -15,6 +15,14 @@ const nextConfig: NextConfig = {
     "@react-three/drei",
     "@studio-freight/react-lenis",
   ],
+  async rewrites() {
+    return [
+      {
+        source: '/api/:path*',
+        destination: 'http://algoquant-env.eba-y7ktk2xn.eu-north-1.elasticbeanstalk.com/api/:path*',
+      },
+    ];
+  },
 };
 
 export default nextConfig;

@@ -49,17 +49,18 @@ ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 43200  # 30 days (30 * 24 * 60)
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
+# CORS - Allow Vercel frontend
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
+
 # --- CORS ---
+# Allow all origins for demo purposes (tighten in production)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "https://algo-quant-pi.vercel.app"
-    ],
-    allow_credentials=True,
+    allow_origins=["*"],  # Allow all origins (simple for demo)
+    allow_credentials=False,  # Must be False when using allow_origins=["*"]
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"]
 )
 
 # --- Health Check Endpoint ---
