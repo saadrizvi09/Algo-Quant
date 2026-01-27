@@ -1,0 +1,33 @@
+name: Deploy Backend to AWS
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'backend/**'  # Only runs when Backend changes
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Generate Deployment Package
+        run: |
+          cd backend
+          # We ZIP the backend folder content
+          zip -r ../deploy.zip . -x '*.git*' '*.DS_Store' 'venv/*'
+
+      - name: Deploy to EB
+        uses: einaregilsson/beanstalk-deploy@v21
+        with:
+          aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws_region: eu-north-1                   # Your Region (Stockholm)
+          application_name: Algo-Quant-backend     # Your EXACT App Name
+          environment_name: algoquant-env          # Your EXACT Env Name
+          version_label: "ver-${{ github.sha }}"
+          deployment_package: deploy.zip
