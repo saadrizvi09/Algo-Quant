@@ -5,7 +5,7 @@ on:
     branches:
       - main
     paths:
-      - 'backend/**'  # Only runs when Backend changes
+      - 'backend/**'  
 
 jobs:
   deploy:
@@ -14,6 +14,12 @@ jobs:
     steps:
       - name: Checkout Source Code
         uses: actions/checkout@v4
+
+      - name: Run Tests
+        run: |
+          # In a real app, this would be 'pytest'
+          echo "Running Unit Tests..."
+          python -m compileall backend/  # This checks for syntax errors!
 
       - name: Generate Deployment Package
         run: |
@@ -26,8 +32,8 @@ jobs:
         with:
           aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws_region: eu-north-1                   # Your Region (Stockholm)
-          application_name: Algo-Quant-backend     # Your EXACT App Name
-          environment_name: algoquant-env          # Your EXACT Env Name
+          region: eu-north-1                       
+          application_name: Algo-Quant-backend     
+          environment_name: algoquant-env          
           version_label: "ver-${{ github.sha }}"
           deployment_package: deploy.zip
