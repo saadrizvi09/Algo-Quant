@@ -24,8 +24,8 @@ jobs:
       - name: Generate Deployment Package
         run: |
           cd backend
-          # We ZIP the backend folder content
-          zip -r ../deploy.zip . -x '*.git*' '*.DS_Store' 'venv/*'
+          # The asterisk * usually skips hidden files, so we explicitly add .ebextensions
+          zip -r ../deploy.zip . .ebextensions -x '*.git*' '*.DS_Store' 'venv/*'
 
       - name: Deploy to EB
         uses: einaregilsson/beanstalk-deploy@v21
